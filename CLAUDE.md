@@ -126,7 +126,7 @@ PostgreSQL → Oracle later would mean rewriting SQL and taking on licensing cos
   text) before the API is ever reached. Measured: `curl/*` and an empty/missing UA are blocked;
   `Java-http-client/*`, `python-requests/*`, a custom UA, and browser UAs all pass. So a browser
   UA is *not* required — do not impersonate one. This project sends
-  `ddoksi-collector/1.0 (+https://github.com/Heo-Yoon-5025/DdolSi)` so the API operator can
+  `ddoksi-collector/1.0 (+https://github.com/Heo-Yoon-5025/DdokSi)` so the API operator can
   identify and contact us. A collector that gets this wrong looks like a total API outage.
   Note this arrives as an HTTP 400, so it must be treated as **non-retryable** — retrying a
   blocked UA never succeeds.
