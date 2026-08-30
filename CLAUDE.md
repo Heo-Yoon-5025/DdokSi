@@ -122,10 +122,14 @@ PostgreSQL → Oracle later would mean rewriting SQL and taking on licensing cos
 
 **Verified by direct calls (2026-08-30):**
 
-- **A browser `User-Agent` header is required.** Without one the edge returns
-  `HTTP 400 Bad Request.` (12 bytes of plain text) before the API is ever reached. With one,
-  the API answers normally. This is a WAF rule, not an API error — any collector that omits
-  the header will look like a total API outage. Always send a `User-Agent`.
+- **The WAF blocks some `User-Agent` values with `HTTP 400 Bad Request.`** (12 bytes of plain
+  text) before the API is ever reached. Measured: `curl/*` and an empty/missing UA are blocked;
+  `Java-http-client/*`, `python-requests/*`, a custom UA, and browser UAs all pass. So a browser
+  UA is *not* required — do not impersonate one. This project sends
+  `ddoksi-collector/1.0 (+https://github.com/Heo-Yoon-5025/DdolSi)` so the API operator can
+  identify and contact us. A collector that gets this wrong looks like a total API outage.
+  Note this arrives as an HTTP 400, so it must be treated as **non-retryable** — retrying a
+  blocked UA never succeeds.
 - `KEY=sample` does **not** work, despite the developer guide implying a sample default.
   It returns `{"RESULT":{"CODE":"ERROR-290","MESSAGE":"인증키가 유효하지 않습니다..."}}`.
 - Errors come back as **HTTP 200** with a `RESULT.CODE` / `RESULT.MESSAGE` body. Status codes
