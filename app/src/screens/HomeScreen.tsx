@@ -140,6 +140,7 @@ export default function HomeScreen() {
             renderItem={({ item }) => <BillCard bill={item} />}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={<Text style={styles.empty}>해당하는 법안이 없습니다.</Text>}
+            style={styles.list}
             contentContainerStyle={styles.listContent}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
@@ -231,6 +232,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.accent,
     fontWeight: '600',
+  },
+  // 헤더/검색/필터가 쓴 만큼을 뺀 나머지를 목록이 차지하게 한다.
+  // 명시하지 않으면 형제 요소와 공간을 다투다 높이가 0 이 될 수 있다.
+  list: {
+    flex: 1,
   },
   listContent: {
     paddingBottom: spacing.xl,
