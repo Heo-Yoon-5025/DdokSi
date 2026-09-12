@@ -1,0 +1,43 @@
+# 테스트용 법안 픽스처. 열린국회정보 Open API 에서 실제로 수집한 공개 데이터다.
+# 실제 값을 쓰는 이유: 제안이유 수집 테스트가 이 의안번호로 국회 API 를 실호출한다.
+#   가짜 의안번호를 넣으면 전부 INFO-200 이 되어 아무것도 검증하지 못한다.
+# 형식: 의안번호|국회의안ID|법안명|상태|처리결과원문|소관위원회|제안일|대표발의자|원문링크
+2207293|PRC_Y2W5U0V1T0U6Q1Q4O0N4O0M3M4V7V1|아동·청소년의 성보호에 관한 법률 일부개정법률안|DISCARDED|철회|여성가족위원회|2025-01-07|조계원|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Y2W5U0V1T0U6Q1Q4O0N4O0M3M4V7V1&ageFrom=22&ageTo=22
+2208675|PRC_V2U5U0C2C2B4C1A7A3Z8H4H5F7G9F4|전자금융거래법 일부개정법률안|DISCARDED|철회||2025-03-06|오세희|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_V2U5U0C2C2B4C1A7A3Z8H4H5F7G9F4&ageFrom=22&ageTo=22
+2210670|PRC_K2K5J0H6I0G4G2O0P1N5O4N9L3L5T8|경북·경남·울산 초대형산불 피해구제 및 지원 등을 위한 특별법안|MERGED|대안반영폐기|산불피해지원대책 특별위원회|2025-06-05|이달희|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_K2K5J0H6I0G4G2O0P1N5O4N9L3L5T8&ageFrom=22&ageTo=22
+2211111|PRC_T2U5C0C6A2B6Z1Y2Y0G3H4F1G1E4F3|노동조합 및 노동관계조정법 일부개정법률안|MERGED|대안반영폐기|환경노동위원회|2025-06-27|이수진|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_T2U5C0C6A2B6Z1Y2Y0G3H4F1G1E4F3&ageFrom=22&ageTo=22
+2214345|PRC_V2V5D0A9Z0H8G1P0M0K4T4S0R4Q8L1|신용정보의 이용 및 보호에 관한 법률 일부개정법률안|MERGED|대안반영폐기|정무위원회|2025-11-18|이인영|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_V2V5D0A9Z0H8G1P0M0K4T4S0R4Q8L1&ageFrom=22&ageTo=22
+2214690|PRC_D2E5C1D1B2Z8A0I9J5H7H2G4E8F5N7|서비스발전 기본법안|DISCARDED|철회|기획재정위원회|2025-11-28|김영환|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_D2E5C1D1B2Z8A0I9J5H7H2G4E8F5N7&ageFrom=22&ageTo=22
+2215147|PRC_W2U5V1D2E0C8C1B3B4Z1I2I9G3H8F8|12·29여객기참사 피해구제 및 지원 등을 위한 특별법 일부개정법률안|MERGED|대안반영폐기|12.29여객기참사진상규명과피해자및유가족의피해구제를위한특별위원회|2025-12-11|손명수|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_W2U5V1D2E0C8C1B3B4Z1I2I9G3H8F8&ageFrom=22&ageTo=22
+2216681|PRC_M2L6J0J2R0S9Q0R9P1Q6O5K8K8J5K3|한미 전략적 투자 관리를 위한 특별법안|MERGED|대안반영폐기|대미투자특별법 처리를 위한 특별위원회|2026-02-09|정태호|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_M2L6J0J2R0S9Q0R9P1Q6O5K8K8J5K3&ageFrom=22&ageTo=22
+2217540|PRC_L2L6J0K2I2E6F1D0E1C4C1B4C4J0K2|국가정보원법 일부개정법률안|PASSED|수정가결|정보위원회|2026-03-17|이성권,박선원|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_L2L6J0K2I2E6F1D0E1C4C1B4C4J0K2&ageFrom=22&ageTo=22
+2218438|PRC_W2V6T0T4S2T0A0B9A5Y5Y4X9X5F5E0|세종특별자치시 설치 등에 관한 특별법 일부개정법률안|PASSED|수정가결|정치개혁특별위원회|2026-04-20|김종민,강준현|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_W2V6T0T4S2T0A0B9A5Y5Y4X9X5F5E0&ageFrom=22&ageTo=22
+2218619|PRC_X2W6V0V3U2C6B1A4Y2Z7H1G5E6F3D5|기후위기 대응을 위한 탄소중립ㆍ녹색성장 기본법 일부개정법률안|MERGED|대안반영폐기|기후위기 특별위원회|2026-04-24|최혁진|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_X2W6V0V3U2C6B1A4Y2Z7H1G5E6F3D5&ageFrom=22&ageTo=22
+2218991|PRC_V2W6D0E5C1D4B1C5A1I4J2H1I8G2H7|유엔참전용사의 명예선양 등에 관한 법률 일부개정법률안|DISCARDED|철회|정무위원회|2026-05-15|정희용|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_V2W6D0E5C1D4B1C5A1I4J2H1I8G2H7&ageFrom=22&ageTo=22
+2219081|PRC_M2L6K0S5P2O7X1X4W4C3B0A7J6I5E0|공익신고장려기금법안|DISCARDED|철회|재정경제기획위원회|2026-05-29|조인철|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_M2L6K0S5P2O7X1X4W4C3B0A7J6I5E0&ageFrom=22&ageTo=22
+2219775|PRC_Z2Y6G0F6D2C5D1L7J4I7J4H5Q5O6N3|음악산업진흥에 관한 법률 일부개정법률안|DISCARDED|철회|문화체육관광위원회|2026-07-06|김현|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Z2Y6G0F6D2C5D1L7J4I7J4H5Q5O6N3&ageFrom=22&ageTo=22
+2219778|PRC_G2G6E0D6E2L5M1K7L4J8K1I0Q5R1P0|정보통신망 이용촉진 및 정보보호 등에 관한 법률 일부개정법률안|DISCARDED|철회|과학기술정보방송통신위원회|2026-07-06|김현|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_G2G6E0D6E2L5M1K7L4J8K1I0Q5R1P0&ageFrom=22&ageTo=22
+2219810|PRC_I2H6G0H6F3N0M1K1L0K8G2F7D3C4D8|근로기준법 일부개정법률안|DISCARDED|철회|기후에너지환경노동위원회|2026-07-07|박민규|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_I2H6G0H6F3N0M1K1L0K8G2F7D3C4D8&ageFrom=22&ageTo=22
+2220101|PRC_V2E6C0C7A0B7A1A0W4W4V5T6U2S0T6|자원의 절약과 재활용촉진에 관한 법률 일부개정법률안|DISCARDED|철회|기후에너지환경노동위원회|2026-07-22|오세희|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_V2E6C0C7A0B7A1A0W4W4V5T6U2S0T6&ageFrom=22&ageTo=22
+2220236|PRC_L2U6S0S7Q2R8Q1Q1Y2Y8X1V4W2U5U4|국회법 일부개정법률안|PASSED|수정가결|국회운영위원회|2026-07-29|김영진|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_L2U6S0S7Q2R8Q1Q1Y2Y8X1V4W2U5U4&ageFrom=22&ageTo=22
+2220644|PRC_W2U6V0D7B1C5A1B4Z1A7W3W7U5T7T6|응급의료에 관한 법률 일부개정법률안|DISCARDED|철회|보건복지위원회|2026-08-20|임종득|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_W2U6V0D7B1C5A1B4Z1A7W3W7U5T7T6&ageFrom=22&ageTo=22
+2220650|PRC_Q2P6P0N7O1K6I1J1H1I2G4O0P1N7N4|유통산업발전법 일부개정법률안|DISCARDED|철회|산업통상자원중소벤처기업위원회|2026-08-20|유의동|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Q2P6P0N7O1K6I1J1H1I2G4O0P1N7N4&ageFrom=22&ageTo=22
+2220979|PRC_S2S6R0S6Z2Y9Y1X1Y3W8W4S3Q9R9Q6|공직자의 이해충돌 방지법 일부개정법률안|DISCARDED|철회|정무위원회|2026-09-01|황명선|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_S2S6R0S6Z2Y9Y1X1Y3W8W4S3Q9R9Q6&ageFrom=22&ageTo=22
+2221128|PRC_Z2X6Y0W7X0V9D1E8C4C7B2B1A1I4I4|개인정보 보호법 일부개정법률안|PENDING||정무위원회|2026-09-07|박형수|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Z2X6Y0W7X0V9D1E8C4C7B2B1A1I4I4&ageFrom=22&ageTo=22
+2221149|PRC_J2F6D0E8C2D5B1C7K4I7I1H0I7G2G0|여권법 일부개정법률안|PENDING||외교통일위원회|2026-09-08|김준형|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_J2F6D0E8C2D5B1C7K4I7I1H0I7G2G0&ageFrom=22&ageTo=22
+2221225|PRC_A2I6H0H9F0G8E1F8A1B4Z4Y7Y2X4X2|인신매매등방지 및 피해자보호 등에 관한 법률 일부개정법률안|PENDING||성평등가족위원회|2026-09-09|이수진|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_A2I6H0H9F0G8E1F8A1B4Z4Y7Y2X4X2&ageFrom=22&ageTo=22
+2221257|PRC_F2F6B0C8A1B9Z0X9Y4G4H3F1F5E1C5|농업·농촌 및 식품산업 기본법 일부개정법률안|PENDING||농림축산식품해양수산위원회|2026-09-09|박성훈|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_F2F6B0C8A1B9Z0X9Y4G4H3F1F5E1C5&ageFrom=22&ageTo=22
+2221265|PRC_A2A6Z0G9H0F9G1E1F4D8E3M0K7K2J5|대통령 등의 경호에 관한 법률 일부개정법률안|PENDING||국회운영위원회|2026-09-09|천준호|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_A2A6Z0G9H0F9G1E1F4D8E3M0K7K2J5&ageFrom=22&ageTo=22
+2221268|PRC_L2J6K0I9J0H8P1Q7O5O0N3O8M3U0U7|정보통신망 이용촉진 및 정보보호 등에 관한 법률 일부개정법률안|PENDING||과학기술정보방송통신위원회|2026-09-09|한준호|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_L2J6K0I9J0H8P1Q7O5O0N3O8M3U0U7&ageFrom=22&ageTo=22
+2221289|PRC_U2B5C1A1B0Z6Y1Y3G3G3F0F0D7E6D5|공교육 정상화 촉진 및 선행교육 규제에 관한 특별법 일부개정법률안|PENDING||교육위원회|2026-09-10|김문수|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_U2B5C1A1B0Z6Y1Y3G3G3F0F0D7E6D5&ageFrom=22&ageTo=22
+2221291|PRC_G2V6V0U9U0S8R0S9Z2A3Z3Z5Y2W1X0|사관학교 설치법 일부개정법률안|PENDING||국방위원회|2026-09-10|윤상현|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_G2V6V0U9U0S8R0S9Z2A3Z3Z5Y2W1X0&ageFrom=22&ageTo=22
+2221295|PRC_N2V6V0U8U0T5T1S1A3A2Z1Z6X1W5W8|조세특례제한법 일부개정법률안|PENDING||재정경제기획위원회|2026-09-10|이재관|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_N2V6V0U8U0T5T1S1A3A2Z1Z6X1W5W8&ageFrom=22&ageTo=22
+2221296|PRC_N2L6M0K9G0H9F1F0E1E8D5D9L6K0K6|가정폭력범죄의 처벌 등에 관한 특례법 일부개정법률안|PENDING||법제사법위원회|2026-09-10|김한규|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_N2L6M0K9G0H9F1F0E1E8D5D9L6K0K6&ageFrom=22&ageTo=22
+2221297|PRC_X2Y6W0X9W0D3E1C5D3B6C3A4A9J9H2|바둑 진흥법 일부개정법률안|PENDING||문화체육관광위원회|2026-09-10|민홍철|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_X2Y6W0X9W0D3E1C5D3B6C3A4A9J9H2&ageFrom=22&ageTo=22
+2221305|PRC_C2A6Z0Z9X0Y2U0V9T2T1S5Q6R7Y8Z6|부정경쟁방지 및 영업비밀보호에 관한 법률 일부개정법률안|PENDING||산업통상자원중소벤처기업위원회|2026-09-10|허성무|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_C2A6Z0Z9X0Y2U0V9T2T1S5Q6R7Y8Z6&ageFrom=22&ageTo=22
+2221307|PRC_Y2Z6X0Y9G0G9F1D4E1C6C3L9L3J7K9|지방세법 일부개정법률안|PENDING||행정안전위원회|2026-09-10|고동진|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Y2Z6X0Y9G0G9F1D4E1C6C3L9L3J7K9&ageFrom=22&ageTo=22
+2221308|PRC_A2Y6X0D8B2A5B1Z4A1I7I2G9F9F9D6|대기환경보전법 일부개정법률안|PENDING||기후에너지환경노동위원회|2026-09-10|이용우|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_A2Y6X0D8B2A5B1Z4A1I7I2G9F9F9D6&ageFrom=22&ageTo=22
+2221310|PRC_R2P6Q0O9P0X4V1W4U3U2T5U1P8Q7O5|해외건설 촉진법 일부개정법률안|PENDING||국토교통위원회|2026-09-10|염태영,김종양|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_R2P6Q0O9P0X4V1W4U3U2T5U1P8Q7O5&ageFrom=22&ageTo=22
+2221311|PRC_Q2P6X0X9V0W3V1V5T1U4J4H6I8H9H9|기초연금법 일부개정법률안|PENDING||보건복지위원회|2026-09-10|곽규택|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Q2P6X0X9V0W3V1V5T1U4J4H6I8H9H9&ageFrom=22&ageTo=22
+2221314|PRC_P2N6N0M9K0L2G1H2F4G1F0D8E8M9M6|5·18민주유공자예우 및 단체설립에 관한 법률 일부개정법률안|PENDING||정무위원회|2026-09-10|정진욱|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_P2N6N0M9K0L2G1H2F4G1F0D8E8M9M6&ageFrom=22&ageTo=22
+2221327|PRC_S2Q6P0O9X0W8U1V7T1I6J0H6I1G5F3|자율방범대 설치 및 운영에 관한 법률 일부개정법률안|PENDING|||2026-09-11|박균택|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_S2Q6P0O9X0W8U1V7T1I6J0H6I1G5F3&ageFrom=22&ageTo=22

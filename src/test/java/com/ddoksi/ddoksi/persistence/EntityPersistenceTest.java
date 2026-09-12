@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -30,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * ⚠️ 로컬에 PostgreSQL 이 떠 있어야 실행된다. (brew services start postgresql@17)
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @Transactional
 class EntityPersistenceTest {

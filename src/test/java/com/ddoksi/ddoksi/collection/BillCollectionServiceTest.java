@@ -9,6 +9,7 @@ import com.ddoksi.ddoksi.collection.api.AssemblyApiProperties;
 import com.ddoksi.ddoksi.collection.entity.CollectionRunStatus;
 import com.ddoksi.ddoksi.collection.repository.BillRawRepository;
 import com.ddoksi.ddoksi.collection.repository.CollectionRunRepository;
+import com.ddoksi.ddoksi.support.DatabaseCleaner;
 import java.util.List;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 수집 배치 통합 테스트 — 실제 국회 API 를 호출하고 실제 DB 에 커밋한다.
@@ -24,11 +26,13 @@ import org.springframework.boot.test.context.SpringBootTest;
  * 테스트를 트랜잭션으로 감싸면 그 커밋이 롤백되어 정작 검증하려는 동작을 확인할 수 없다.
  * 특히 "두 번 돌려도 이력이 중복되지 않는다"는 멱등성은 커밋된 상태를 다시 읽어야 검증된다.
  *
- * <p>따라서 이 테스트는 로컬 DB 에 데이터를 남긴다. 삭제하지 않는 이유:
- * 개발 과정에서 실물 데이터가 있는 편이 유용하고, 재실행이 곧 멱등성 검증이다.
+ * <p>커밋을 하므로 데이터가 남는다. 예전에는 그것을 그대로 두었지만, 개발 DB(ddoksi)에
+ * 실수집분과 테스트 찌꺼기가 섞여 나중에 버그인지 테스트 탓인지 구분할 수 없었다.
+ * 지금은 별도 테스트 DB(ddoksi_test)를 쓰고 각 테스트가 시작할 때 비운다.
  *
  * <p>전체 1만9천 건을 긁지 않도록 2페이지(200건)만 수집한다.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 class BillCollectionServiceTest {
 
@@ -41,10 +45,13 @@ class BillCollectionServiceTest {
     @Autowired private BillStatusHistoryRepository statusHistoryRepository;
     @Autowired private CollectionRunRepository runRepository;
     @Autowired private AssemblyApiProperties properties;
+    @Autowired private DatabaseCleaner cleaner;
 
     @BeforeEach
-    void requireApiKey() {
+    void prepare() {
         Assumptions.assumeTrue(properties.hasKey(), "인증키가 없어 건너뜁니다 (.env 확인)");
+        // 앞선 테스트가 남긴 데이터가 건수 검증을 흔들지 않도록 매번 비운다
+        cleaner.clean();
     }
 
     @Test

@@ -9,7 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.ddoksi.ddoksi.bill.entity.BillStatus;
 import com.ddoksi.ddoksi.bill.repository.BillRepository;
-import org.junit.jupiter.api.Assumptions;
+import com.ddoksi.ddoksi.support.BillFixtures;
+import com.ddoksi.ddoksi.support.DatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,28 +18,34 @@ import org.springframework.beans.factory.annotation.Autowired;
 // Boot 4 에서 패키지가 org.springframework.boot.test.autoconfigure.web.servlet 에서 옮겨졌다
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * 법안 조회 API 테스트.
  *
- * 수집된 실제 데이터를 대상으로 한다. 데이터가 없으면 건너뛴다
- * (백필: ./gradlew bootRun --args='--ddoksi.collection.backfill.enabled=true').
+ * 테스트 DB 를 비우고 픽스처를 심은 뒤 검증한다. 예전에는 개발 DB 에 쌓인 수집분에
+ * 기대고 있었는데, 그러면 각자의 DB 상태에 따라 결과가 달라져 재현이 되지 않았다.
  *
  * 오류 응답의 상태 코드를 명시적으로 검증한다. 예외 핸들러를 잘못 넓게 잡으면
  * Spring 이 이미 올바르게 매핑해 둔 400 을 500 으로 덮어쓰게 되는데,
  * 실제로 그 문제가 있었고 이 테스트가 재발을 막는다.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
 class BillControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private BillRepository billRepository;
+    @Autowired private DatabaseCleaner cleaner;
+    @Autowired private BillFixtures fixtures;
 
     @BeforeEach
-    void requireData() {
-        Assumptions.assumeTrue(billRepository.count() > 0, "수집된 법안이 없어 건너뜁니다");
+    void seedFixtures() {
+        // 매번 비우고 다시 심는다. 이전 테스트가 남긴 데이터가 건수 검증을 흔들면 안 된다.
+        cleaner.clean();
+        fixtures.seed();
     }
 
     @Test
@@ -60,9 +67,6 @@ class BillControllerTest {
     @Test
     @DisplayName("상태 필터가 해당 상태만 돌려준다")
     void filtersByStatus() throws Exception {
-        long passedCount = billRepository.count();
-        Assumptions.assumeTrue(passedCount > 0);
-
         mockMvc.perform(get("/api/bills").param("status", "PASSED").param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[*].status").value(
