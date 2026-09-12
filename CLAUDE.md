@@ -243,12 +243,39 @@ As of **2026-08-30**:
 | Item | State |
 |---|---|
 | Git | Repository initialized, **zero commits** |
-| Backend | Flyway migrations + **JPA entities for all 9 tables**. No repositories, services, or controllers yet |
+| Backend | Flyway migrations, JPA entities, repositories, and a **working collection batch**. No REST controllers yet |
 | Database schema | **9 tables created; entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
 | Mobile app | Expo project in `app/` with a working main screen — **mock data only** |
-| National Assembly Open API | Key issued (in gitignored `.env`). **Response shape and all status values verified**; no collector code yet |
+| National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
 | AI analysis | Not implemented |
+
+### Collection batch
+
+`BillCollectionService` walks the member-bill API page by page. `BillPagePersister` commits
+**one transaction per page** — wrapping the whole 195-page walk in one transaction would hold a
+connection throughout and roll back everything on a late failure.
+
+Idempotency is the batch's core property: a status history row is written only when the value
+actually changed (`Bill.hasStatusChanged`), and raw payloads are stored only for new or changed
+bills — otherwise every run would append ~19k identical rows to `bill_raw`.
+
+Failure handling: per-row defects are logged and skipped; retryable failures (timeout, 5xx) retry
+the same page up to 3 times with growing backoff; non-retryable ones (bad key, blocked UA — which
+arrives as an HTTP 400) abort immediately.
+
+Scheduling uses `@Scheduled`, not Spring Batch — the work is "page walk → upsert → status diff",
+and Job/Step/Chunk plus its metadata tables buy little here; run history already lives in
+`collection_run`. Wrap the service in a Step later if that changes.
+
+Both entry points are **disabled by default** so a test run or local startup never pulls 19k rows:
+- `ddoksi.collection.scheduled.enabled=true` — nightly cron
+- `ddoksi.collection.backfill.enabled=true` — one-off full backfill at startup
+
+**Measured on the full dataset (2026-09-12, 19,447 bills):** `PENDING` 74.9%, `MERGED` 20.9%,
+`PASSED` 3.4%, `DISCARDED` 0.9%, and **`UNKNOWN` 0** — the status mapping has no gaps against
+real data. `MERGED` outnumbers `PASSED` six to one, which is why it is its own status.
+`임기만료폐기` and `부결` do not appear yet (the 22nd Assembly is still sitting) but are mapped.
 
 ### Schema (V1, V2)
 
