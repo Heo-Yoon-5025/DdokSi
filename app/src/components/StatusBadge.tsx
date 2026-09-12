@@ -1,21 +1,21 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { BillStatus, STATUS_LABEL } from '../types/bill';
-import { colors, spacing } from '../theme';
+import { BillStatus } from '../types/bill';
+import { spacing, statusColors } from '../theme';
 
 type Props = {
   status: BillStatus;
+  /** 표시 문구는 서버가 내려준 라벨을 쓴다. 앱이 따로 정의하면 문구가 갈라진다. */
+  label: string;
 };
 
 /** 법안 처리 상태를 작은 배지로 표시한다. */
-export default function StatusBadge({ status }: Props) {
-  // 상태별로 배경/글자색을 다르게 준다
-  const isPassed = status === 'PASSED';
-  const backgroundColor = isPassed ? colors.passedBackground : colors.pendingBackground;
-  const color = isPassed ? colors.passedText : colors.pendingText;
+export default function StatusBadge({ status, label }: Props) {
+  // 서버가 새로운 상태를 추가해도 앱이 깨지지 않도록 기본값을 둔다
+  const palette = statusColors[status] ?? statusColors.UNKNOWN;
 
   return (
-    <View style={[styles.badge, { backgroundColor }]}>
-      <Text style={[styles.label, { color }]}>{STATUS_LABEL[status]}</Text>
+    <View style={[styles.badge, { backgroundColor: palette.background }]}>
+      <Text style={[styles.label, { color: palette.text }]}>{label}</Text>
     </View>
   );
 }

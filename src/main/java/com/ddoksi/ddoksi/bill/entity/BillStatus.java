@@ -22,5 +22,21 @@ public enum BillStatus {
     /** 폐기 — 임기만료폐기/철회/폐기/부결 */
     DISCARDED,
     /** 아직 분류 규칙이 없는 처리결과 */
-    UNKNOWN
+    UNKNOWN;
+
+    /**
+     * 화면에 노출할 한글 라벨.
+     *
+     * 앱과 레터가 각자 라벨을 정의하면 같은 상태를 다른 말로 부르게 된다.
+     * 한국어 전용 서비스이므로 여기 한 곳에서 정하고 API 응답에 실어 보낸다.
+     */
+    public String label() {
+        return switch (this) {
+            case PENDING -> "논의중";
+            case PASSED -> "통과";
+            case MERGED -> "대안반영";
+            case DISCARDED -> "폐기";
+            case UNKNOWN -> "확인필요";
+        };
+    }
 }

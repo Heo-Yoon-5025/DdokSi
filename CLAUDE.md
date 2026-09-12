@@ -243,12 +243,37 @@ As of **2026-08-30**:
 | Item | State |
 |---|---|
 | Git | Repository initialized, **zero commits** |
-| Backend | Flyway migrations, JPA entities, repositories, and a **working collection batch**. No REST controllers yet |
+| Backend | Flyway migrations, JPA entities, collection batch, and a **read-only REST API** (`/api/bills`) |
 | Database schema | **9 tables created; entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
-| Mobile app | Expo project in `app/` with a working main screen — **mock data only** |
+| Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll |
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
 | AI analysis | Not implemented |
+
+### REST API
+
+`GET /api/bills` — paged list. Optional `status`, `committee`, `keyword`; `page`, `size` (max 100).
+`GET /api/bills/{id}` — detail with status history. `GET /api/bills/committees` — filter options.
+No authentication: this is public National Assembly data. Add auth only on subscription routes.
+
+Three deliberate choices, each fixing a problem that actually occurred:
+
+- **Filters use `Specification`, not one query with `(:param is null or col = :param)`.**
+  That pattern broke outright — a null bind made PostgreSQL infer `bytea` and fail with
+  `function lower(bytea) does not exist`. It also defeats indexes, since the planner cannot know
+  which predicates apply. Specifications emit only the conditions actually requested.
+- **`ApiExceptionHandler` extends `ResponseEntityExceptionHandler`.** A bare catch-all on
+  `Exception` overwrote Spring's own correct mappings — `status=NOPE` returned 500 instead of 400.
+  Extending it keeps the standard mappings (400 type mismatch, 405, 415) and adds ours on top.
+  `BillControllerTest` pins the status codes so this cannot regress.
+- **Responses use our own `PageResponse`, not Spring's `Page`.** `Page`'s JSON shape has changed
+  across Spring versions, which would make an internal class the app's contract.
+
+Status labels (`논의중`, `통과`, `대안반영`, `폐기`) come from `BillStatus.label()` and ship in the
+response, so the app and the newsletter cannot drift into different wording for the same state.
+
+CORS is limited to configured origins (`ddoksi.cors.allowed-origins`) — never a wildcard. Expo web
+runs on 8081 and the API on 8080, so without it the browser blocks every request.
 
 ### Collection batch
 

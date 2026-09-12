@@ -1,112 +1,103 @@
 /**
  * 법안 데이터 조회 계층.
  *
- * ⚠️ 현재는 전부 목업이다. 백엔드 API가 없고 국회 Open API 인증키도 아직 없다.
- *
- * 화면 컴포넌트는 이 모듈의 함수만 호출하고 데이터 출처를 알지 못한다.
- * 따라서 실제 API가 준비되면 아래 fetchBills 내부만 fetch 호출로 바꾸면 되고,
- * 화면 코드는 손대지 않는다.
+ * 화면 컴포넌트는 이 모듈의 함수만 호출하고 데이터 출처나 HTTP 세부사항을 알지 못한다.
+ * 목업에서 실제 API 로 바꾼 작업이 이 파일 안에서만 끝난 것도 그 분리 덕분이다.
  */
-import { Bill, BillStatus } from '../types/bill';
+import { API_BASE_URL } from '../config/api';
+import { BillDetail, BillStatus, BillSummary, PageResponse } from '../types/bill';
 
-/** 목업 데이터. 실제 발의 법안이 아니라 화면 확인용으로 지어낸 예시다. */
-const MOCK_BILLS: Bill[] = [
-  {
-    id: '1',
-    billNo: '2200101',
-    title: '주택임대차보호법 일부개정법률안',
-    status: 'PENDING',
-    committee: '법제사법위원회',
-    proposer: '홍길동 의원 등 12인',
-    proposedDate: '2026-08-21',
-    summary: '임대차 계약 갱신 시 임대인이 갱신 거절 사유를 서면으로 통지하도록 의무화한다.',
-  },
-  {
-    id: '2',
-    billNo: '2200098',
-    title: '개인정보 보호법 일부개정법률안',
-    status: 'PASSED',
-    committee: '정무위원회',
-    proposer: '김철수 의원 등 21인',
-    proposedDate: '2026-07-14',
-    summary: '개인정보 유출 사고 발생 시 정보주체에 대한 통지 기한을 72시간 이내로 단축한다.',
-  },
-  {
-    id: '3',
-    billNo: '2200095',
-    title: '중소기업기본법 일부개정법률안',
-    status: 'PENDING',
-    committee: '산업통상자원중소벤처기업위원회',
-    proposer: '이영희 의원 등 10인',
-    proposedDate: '2026-08-11',
-    summary: '중소기업 판정 기준에서 일시적 매출 증가를 유예하는 규정을 신설한다.',
-  },
-  {
-    id: '4',
-    billNo: '2200087',
-    title: '도로교통법 일부개정법률안',
-    status: 'PASSED',
-    committee: '행정안전위원회',
-    proposer: '박민수 의원 등 15인',
-    proposedDate: '2026-06-30',
-    summary: '어린이보호구역 내 불법 주정차 과태료를 상향하고 단속 시간을 확대한다.',
-  },
-  {
-    id: '5',
-    billNo: '2200083',
-    title: '근로기준법 일부개정법률안',
-    status: 'PENDING',
-    committee: '환경노동위원회',
-    proposer: '최지은 의원 등 18인',
-    proposedDate: '2026-08-05',
-    summary: '상시 5인 미만 사업장에도 연차 유급휴가 규정을 단계적으로 적용한다.',
-  },
-  {
-    id: '6',
-    billNo: '2200079',
-    title: '전기통신사업법 일부개정법률안',
-    status: 'PENDING',
-    committee: '과학기술정보방송통신위원회',
-    proposer: '정다은 의원 등 11인',
-    proposedDate: '2026-07-28',
-    summary: '통신사가 요금제 변경 시 이용자에게 사전 고지할 의무를 명확히 한다.',
-  },
-  {
-    id: '7',
-    billNo: '2200071',
-    title: '국민건강보험법 일부개정법률안',
-    status: 'PASSED',
-    committee: '보건복지위원회',
-    proposer: '강현우 의원 등 24인',
-    proposedDate: '2026-06-12',
-    summary: '장기 요양 급여의 본인부담 상한액 산정 방식을 소득 구간별로 세분화한다.',
-  },
-  {
-    id: '8',
-    billNo: '2200064',
-    title: '학교급식법 일부개정법률안',
-    status: 'PENDING',
-    committee: '교육위원회',
-    proposer: '윤서연 의원 등 9인',
-    proposedDate: '2026-07-03',
-    summary: '학교급식 식재료의 원산지 정보를 학부모에게 상시 공개하도록 한다.',
-  },
-];
+/** 요청이 응답하지 않을 때 화면이 영원히 로딩 상태로 남지 않게 한다. */
+const TIMEOUT_MS = 10_000;
 
-/** 목업이 즉시 응답하면 로딩 상태 처리가 제대로 동작하는지 확인할 수 없어 지연을 준다. */
-const MOCK_DELAY_MS = 400;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 /**
- * 법안 목록을 조회한다.
+ * 공통 요청 처리.
  *
- * @param status 지정하면 해당 상태만 반환하고, 생략하면 전체를 반환한다.
+ * 서버는 오류를 RFC 9457 ProblemDetail 로 내려준다({ title, detail, status }).
+ * 그 title 을 사용자에게 보여줄 메시지로 쓴다.
  */
-export async function fetchBills(status?: BillStatus): Promise<Bill[]> {
-  await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
-
-  // 상태 필터가 없으면 전체 반환
-  if (!status) {
-    return MOCK_BILLS;
+async function request<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const url = new URL(`${API_BASE_URL}${path}`);
+  if (params) {
+    // 값이 없는 파라미터는 보내지 않는다. 서버에서 "필터 없음"으로 처리된다.
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        url.searchParams.set(key, String(value));
+      }
+    });
   }
-  return MOCK_BILLS.filter((bill) => bill.status === status);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url.toString(), { signal: controller.signal });
+
+    if (!response.ok) {
+      // 오류 본문 파싱에 실패해도 상태 코드만으로 메시지를 만든다
+      let message = `요청이 실패했습니다 (${response.status})`;
+      try {
+        const problem = await response.json();
+        if (problem?.title) {
+          message = problem.title;
+        }
+      } catch {
+        // 본문이 JSON 이 아닌 경우는 무시하고 기본 메시지를 쓴다
+      }
+      throw new ApiError(message, response.status);
+    }
+
+    return (await response.json()) as T;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    // 타임아웃(abort)과 네트워크 단절을 구분해 안내한다.
+    // 실기기에서 localhost 를 쓰면 여기로 온다.
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError('서버 응답이 너무 늦습니다. 잠시 후 다시 시도해 주세요.');
+    }
+    throw new ApiError('서버에 연결할 수 없습니다. 네트워크와 API 주소를 확인해 주세요.');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export interface BillSearchParams {
+  status?: BillStatus;
+  committee?: string;
+  keyword?: string;
+  page?: number;
+  size?: number;
+}
+
+/** 법안 목록을 조회한다. 조건을 생략하면 전체를 최신 제안일 순으로 돌려준다. */
+export function fetchBills(params: BillSearchParams = {}): Promise<PageResponse<BillSummary>> {
+  return request<PageResponse<BillSummary>>('/api/bills', {
+    status: params.status,
+    committee: params.committee,
+    keyword: params.keyword,
+    page: params.page ?? 0,
+    size: params.size ?? 20,
+  });
+}
+
+/** 법안 상세를 조회한다. */
+export function fetchBillDetail(id: number): Promise<BillDetail> {
+  return request<BillDetail>(`/api/bills/${id}`);
+}
+
+/** 필터 UI 에 채울 상임위 목록을 조회한다. */
+export function fetchCommittees(): Promise<string[]> {
+  return request<string[]>('/api/bills/committees');
 }

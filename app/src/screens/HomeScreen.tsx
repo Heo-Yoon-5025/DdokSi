@@ -1,66 +1,155 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import { fetchBills } from '../api/bills';
-import { Bill } from '../types/bill';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { ApiError, fetchBills } from '../api/bills';
+import { BillSummary } from '../types/bill';
 import BillCard from '../components/BillCard';
 import FilterTabs, { FilterValue } from '../components/FilterTabs';
 import { CONTENT_MAX_WIDTH, colors, spacing } from '../theme';
 
+const PAGE_SIZE = 20;
+/** 검색어를 한 글자마다 보내지 않도록 입력이 멈춘 뒤 호출한다. */
+const SEARCH_DEBOUNCE_MS = 400;
+
 /**
- * 메인 화면.
- * 법안 목록을 조회해서 보여주고, 상태별 필터를 제공한다. (로그인 없음)
+ * 메인 화면. (로그인 없음)
+ *
+ * 법안 목록을 조회해 보여주고 상태 필터와 키워드 검색을 제공한다.
+ * 전체 2만 건 규모라 한 번에 받지 않고 스크롤에 따라 이어서 받는다.
  */
 export default function HomeScreen() {
-  const [bills, setBills] = useState<Bill[]>([]);
+  const [bills, setBills] = useState<BillSummary[]>([]);
   const [filter, setFilter] = useState<FilterValue>(undefined);
-  const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [totalElements, setTotalElements] = useState(0);
 
-  /** 현재 필터 기준으로 목록을 다시 불러온다. */
-  const loadBills = useCallback(async (status: FilterValue) => {
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const pageRef = useRef(0);
+  const lastRef = useRef(false);
+
+  // 입력이 멈춘 뒤에만 검색어를 확정한다. 타이핑 중 매 글자마다 요청하지 않기 위한 것이다.
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(searchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  /** 첫 페이지를 불러온다. 필터나 검색어가 바뀌면 목록을 처음부터 다시 구성한다. */
+  const loadFirstPage = useCallback(async (status: FilterValue, searchWord: string) => {
     setLoading(true);
+    setError(null);
     try {
-      const result = await fetchBills(status);
-      setBills(result);
+      const page = await fetchBills({ status, keyword: searchWord, page: 0, size: PAGE_SIZE });
+      setBills(page.content);
+      setTotalElements(page.totalElements);
+      pageRef.current = 0;
+      lastRef.current = page.last;
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '알 수 없는 오류가 발생했습니다.');
+      setBills([]);
+      setTotalElements(0);
     } finally {
-      // 실패하더라도 로딩 표시는 반드시 해제해서 화면이 멈춘 것처럼 보이지 않게 한다
+      // 실패해도 로딩 표시는 반드시 해제해 화면이 멈춘 것처럼 보이지 않게 한다
       setLoading(false);
     }
   }, []);
 
-  // 최초 진입 시, 그리고 필터가 바뀔 때마다 목록을 다시 조회한다
+  /** 다음 페이지를 이어서 불러온다. */
+  const loadMore = useCallback(async () => {
+    // 이미 요청 중이거나 마지막 페이지면 아무것도 하지 않는다.
+    // FlatList 의 onEndReached 는 한 번의 스크롤에서 여러 번 불릴 수 있다.
+    if (loading || loadingMore || lastRef.current) {
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      const next = pageRef.current + 1;
+      const page = await fetchBills({
+        status: filter,
+        keyword,
+        page: next,
+        size: PAGE_SIZE,
+      });
+      setBills((prev) => [...prev, ...page.content]);
+      pageRef.current = next;
+      lastRef.current = page.last;
+    } catch {
+      // 추가 로딩 실패는 첫 페이지 실패와 다르게 다룬다.
+      // 이미 보고 있는 목록을 오류 화면으로 치우지 않고, 다음 스크롤에서 다시 시도되게 둔다.
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [filter, keyword, loading, loadingMore]);
+
   useEffect(() => {
-    loadBills(filter);
-  }, [filter, loadBills]);
+    loadFirstPage(filter, keyword);
+  }, [filter, keyword, loadFirstPage]);
 
   return (
     <View style={styles.screen}>
       <View style={styles.content}>
-        {/* 헤더 */}
         <View style={styles.header}>
           <Text style={styles.logo}>똑시</Text>
           <Text style={styles.tagline}>국회에서 지금 무슨 일이 있었는지</Text>
         </View>
 
-        {/* 데이터 출처를 오해하지 않도록 목업 상태를 명시한다 (실제 API 연동 시 제거) */}
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>목업 데이터입니다. 실제 법안 정보가 아닙니다.</Text>
-        </View>
+        <TextInput
+          style={styles.search}
+          value={searchInput}
+          onChangeText={setSearchInput}
+          placeholder="법안명 검색"
+          placeholderTextColor={colors.textMuted}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
 
         <FilterTabs value={filter} onChange={setFilter} />
 
-        {/* 로딩 중에는 스피너만, 완료되면 목록을 보여준다 */}
+        {/* 조회 결과 건수. 필터가 실제로 걸렸는지 사용자가 확인할 수 있게 한다 */}
+        {!loading && !error ? (
+          <Text style={styles.count}>{totalElements.toLocaleString()}건</Text>
+        ) : null}
+
         {loading ? (
-          <View style={styles.loading}>
+          <View style={styles.centered}>
             <ActivityIndicator color={colors.textMuted} />
+          </View>
+        ) : error ? (
+          <View style={styles.centered}>
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+            <Pressable style={styles.retry} onPress={() => loadFirstPage(filter, keyword)}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </Pressable>
           </View>
         ) : (
           <FlatList
             data={bills}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => <BillCard bill={item} />}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={<Text style={styles.empty}>해당하는 법안이 없습니다.</Text>}
             contentContainerStyle={styles.listContent}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.footer}>
+                  <ActivityIndicator color={colors.textMuted} />
+                </View>
+              ) : null
+            }
           />
         )}
       </View>
@@ -83,7 +172,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.md,
     gap: spacing.xs,
   },
   logo: {
@@ -96,22 +185,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textMuted,
   },
-  notice: {
+  search: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
-    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.pendingBackground,
-    borderRadius: 6,
+    paddingVertical: spacing.sm + 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    fontSize: 14,
+    color: colors.text,
   },
-  noticeText: {
+  count: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     fontSize: 12,
-    color: colors.pendingText,
+    color: colors.textMuted,
   },
-  loading: {
+  centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+  },
+  errorBox: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.dangerSoft,
+    borderRadius: 6,
+  },
+  errorText: {
+    fontSize: 13,
+    color: colors.danger,
+    textAlign: 'center',
+  },
+  retry: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+  },
+  retryText: {
+    fontSize: 13,
+    color: colors.accent,
+    fontWeight: '600',
   },
   listContent: {
     paddingBottom: spacing.xl,
@@ -126,5 +245,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     color: colors.textMuted,
+  },
+  footer: {
+    paddingVertical: spacing.lg,
   },
 });

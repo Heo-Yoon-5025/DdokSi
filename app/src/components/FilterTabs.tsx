@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { BillStatus } from '../types/bill';
 import { colors, spacing } from '../theme';
 
-/** 화면에서 선택 가능한 필터 값. undefined는 '전체'를 뜻한다. */
+/** 선택 가능한 필터 값. undefined 는 '전체'를 뜻한다. */
 export type FilterValue = BillStatus | undefined;
 
 type Props = {
@@ -10,18 +10,28 @@ type Props = {
   onChange: (next: FilterValue) => void;
 };
 
+/**
+ * 탭 구성은 백엔드의 상태 4종을 그대로 노출한다.
+ * 특히 '대안반영'은 전체의 약 21%로 '통과'보다 훨씬 많아, 숨기면 오히려 이해를 방해한다.
+ */
 const TABS: { label: string; value: FilterValue }[] = [
   { label: '전체', value: undefined },
   { label: '논의중', value: 'PENDING' },
   { label: '통과', value: 'PASSED' },
+  { label: '대안반영', value: 'MERGED' },
+  { label: '폐기', value: 'DISCARDED' },
 ];
 
-/** 상태별 필터 탭. 선택된 항목만 배경색으로 구분한다. */
+/** 상태별 필터 탭. 탭이 5개로 늘어 좁은 화면에서는 가로 스크롤된다. */
 export default function FilterTabs({ value, onChange }: Props) {
   return (
-    <View style={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.row}
+    >
       {TABS.map((tab) => {
-        // 현재 선택된 탭인지 판정 (전체 탭은 value가 undefined일 때 선택됨)
+        // 현재 선택된 탭인지 판정 (전체 탭은 value 가 undefined 일 때 선택됨)
         const selected = tab.value === value;
 
         return (
@@ -34,7 +44,7 @@ export default function FilterTabs({ value, onChange }: Props) {
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
