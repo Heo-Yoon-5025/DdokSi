@@ -161,6 +161,27 @@ but only 9 fields and **no committee information**. Field names differ from the 
 `BILL_NM` (not `BILL_NAME`), `PROC_RSLT` (not `PROC_RESULT`), `PPSL_DT`, `PPSR_KIND`,
 `ERACO`, `BILL_KIND`, `LINK_URL`.
 
+**`BPMBILLSUMMARY` — 법률안 제안이유 및 주요내용.** The only source of bill *text*. Probed
+2026-09-13 with a real key.
+
+- **`BILL_NO` is mandatory.** Omitting it returns `ERROR-300 필수 값이 누락되어 있습니다`, and so
+  does any attempt to page or filter by `AGE`. There is no list endpoint: one HTTP call per bill.
+  Budget accordingly — 19,447 bills means 19,447 calls.
+- Five fields only: `BILL_NO`, `BILL_NAME`, `BILL_ID`, `SUMMARY`, `AGE`. Same `head` / `row`
+  envelope as every other API here, so `AssemblyApiClient.fetch()` handles it unchanged.
+- `SUMMARY` length over a 40-bill sample: median 480, mean 662, max 3,149 characters. Stored as
+  `TEXT`; no length cap is safe to assume.
+- **A successful response can still carry no text.** `INFO-000` with `SUMMARY: null` happens for
+  real bills (e.g. `BILL_NO` 2208675). Treat "fetched but empty" as a distinct outcome from
+  "not fetched yet", or the batch re-calls the same bills forever.
+- An unknown `BILL_NO` returns `INFO-200`, which is absence, not an error.
+- The API page lists 요청제한횟수 as 제한없음.
+
+> The response JSON is valid: newlines inside `SUMMARY` arrive correctly escaped as `\n`.
+> An early probe seemed to show raw control characters, but that was `echo "$R" > file` in zsh —
+> zsh's builtin `echo` expands backslash escapes without `-e` and corrupted the saved file.
+> Use `printf '%s'` when capturing API responses in a shell. No Jackson leniency flag is needed.
+
 > Passing `ERACO` as a filter returns `INFO-200 해당하는 데이터가 없습니다` for every value tried
 > (`22`, `제22대`). Omitting it works. Filter by term in our own code, not via that parameter.
 
@@ -238,17 +259,19 @@ Do not assume they are available.
 
 ## Current Project State
 
-As of **2026-08-30**:
+As of **2026-09-13**:
 
 | Item | State |
 |---|---|
-| Git | Repository initialized, **zero commits** |
-| Backend | Flyway migrations, JPA entities, collection batch, and a **read-only REST API** (`/api/bills`) |
-| Database schema | **9 tables created; entity mappings verified by tests** (see below) |
+| Git | 9 commits on `main`, pushed to `Heo-Yoon-5025/DdokSi` |
+| Backend | Flyway migrations, JPA entities, two collection batches, and a **read-only REST API** (`/api/bills`) |
+| Database schema | **10 tables created; entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
-| Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll |
+| Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll. **No detail screen and no navigation library yet** |
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
-| AI analysis | Not implemented |
+| Bill text (제안이유) | **Batch implemented and verified; full backfill not yet run** |
+| AI analysis | Not implemented — it is blocked on the 제안이유 backfill, which supplies its input |
+| Tests | 53, all passing (a local PostgreSQL and an API key are required) |
 
 ### REST API
 
@@ -302,13 +325,41 @@ Both entry points are **disabled by default** so a test run or local startup nev
 real data. `MERGED` outnumbers `PASSED` six to one, which is why it is its own status.
 `임기만료폐기` and `부결` do not appear yet (the 22nd Assembly is still sitting) but are mapped.
 
-### Schema (V1, V2)
+### Summary collection batch (제안이유)
+
+`BillSummaryCollectionService` fills `bill_summary`. It is a **separate batch** from the list
+collector because the two have different shapes: the list API returns 100 bills per call, while
+`BPMBILLSUMMARY` requires `BILL_NO` and returns exactly one. Folding it into the nightly list run
+would turn a two-minute job into a multi-hour one.
+
+**Resumability is the core property here**, the way idempotency is for the list collector. Bills
+that already have a `bill_summary` row are excluded from the query, so an interrupted run simply
+continues where it stopped. `findBillsWithoutSummary` takes an `afterId` cursor rather than always
+reading "the first N without a summary" — otherwise one bill that fails to save would be retried
+forever and the batch would never advance.
+
+A row is written even when `SUMMARY` comes back null, because that is what distinguishes
+"fetched, genuinely empty" from "not fetched yet". `INFO-200` (no such bill number) writes no row,
+so the bill is retried on a later run — the Assembly may publish the text afterwards.
+
+`BillSummaryPersister` commits one transaction per 100 bills and checks the response's `BILL_ID`
+against `bill.external_bill_id`, skipping on mismatch. That guard matters because this API is keyed
+by 의안번호 rather than the bill id we key on everywhere else.
+
+Entry points, both disabled by default for the same reason as the list collector:
+- `ddoksi.collection.summary-backfill.enabled=true` — one-off fill at startup, optionally capped
+  with `ddoksi.collection.summary-backfill.max-bills=<n>`
+- the nightly cron at `ddoksi.collection.scheduled.summary-cron` (04:00, after the 03:30 list run),
+  capped at `summary-max-bills` per run so a backlog never stretches the nightly batch
+
+### Schema (V1–V4)
 
 | Table | Purpose |
 |---|---|
 | `collection_run` | Batch execution history + incremental collection cursor |
 | `bill_raw` | Raw API responses (JSONB), kept so parsing bugs are recoverable by re-processing |
 | `bill` | Normalized bill with its **current** status |
+| `bill_summary` | 제안이유 및 주요내용 — the bill's text, one row per bill (V4) |
 | `bill_status_history` | Status change history — the basis for the newsletter and push alerts |
 | `bill_analysis` | Cached Claude output, keyed by `(bill_id, prompt_version)` |
 | `subscriber` | Newsletter subscribers, with double opt-in status and an unsubscribe token |
@@ -316,10 +367,12 @@ real data. `MERGED` outnumbers `PASSED` six to one, which is why it is its own s
 | `letter_issue` | Monthly newsletter issue |
 | `letter_delivery` | Per-recipient send result, unique on `(issue, subscriber)` to prevent double sends |
 
-`bill.status` is our own normalized value (`PENDING` / `PASSED` / `DISCARDED` / `UNKNOWN`),
-while `bill.proc_result_raw` keeps the National Assembly's original string. The mapping
-between them is **not yet verified against the real API** — unmappable values become
-`UNKNOWN`, and the raw string allows re-classification later without re-collecting.
+`bill.status` is our own normalized value (`PENDING` / `PASSED` / `MERGED` / `DISCARDED` /
+`UNKNOWN`), while `bill.proc_result_raw` keeps the National Assembly's original string. The
+mapping has been verified against all 19,447 collected bills with zero `UNKNOWN`; unmappable
+values still fall through to `UNKNOWN`, and the raw string allows re-classification later
+without re-collecting. `MERGED` was added in V3 after the real data showed it outnumbers
+`PASSED` six to one.
 
 ### Tests
 
