@@ -54,6 +54,9 @@ public class AssemblyApiClient {
     /** 국회의원 발의법률안 */
     public static final String API_MEMBER_BILLS = "nzmimeepazxkubdpn";
 
+    /** 법률안 제안이유 및 주요내용 */
+    public static final String API_BILL_SUMMARY = "BPMBILLSUMMARY";
+
     private final AssemblyApiProperties properties;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
@@ -93,6 +96,22 @@ public class AssemblyApiClient {
      */
     public AssemblyPage fetchMemberBills(int assemblyAge, int pageIndex) {
         return fetch(API_MEMBER_BILLS, pageIndex, Map.of("AGE", String.valueOf(assemblyAge)));
+    }
+
+    /**
+     * 법안 한 건의 제안이유 및 주요내용을 가져온다.
+     *
+     * <p><b>이 API 는 목록을 주지 않는다.</b> BILL_NO 를 빼고 호출하면 ERROR-300 으로 거절되므로
+     * 페이징으로 전체를 훑을 수 없고, 법안 한 건당 한 번씩 호출해야 한다.
+     * (2026-09-13 실호출 확인)
+     *
+     * <p>돌려주는 페이지에는 행이 0개 또는 1개 들어 있다.
+     * 존재하지 않는 의안번호는 INFO-200 이라 빈 페이지가 되고, 이는 오류가 아니다.
+     *
+     * @param billNo 의안번호 (예: 2220236)
+     */
+    public AssemblyPage fetchBillSummary(String billNo) {
+        return fetch(API_BILL_SUMMARY, 1, Map.of("BILL_NO", billNo));
     }
 
     /**
