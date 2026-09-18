@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BillStatus } from '../types/bill';
 import { colors, spacing } from '../theme';
 
@@ -22,14 +22,16 @@ const TABS: { label: string; value: FilterValue }[] = [
   { label: '폐기', value: 'DISCARDED' },
 ];
 
-/** 상태별 필터 탭. 탭이 5개로 늘어 좁은 화면에서는 가로 스크롤된다. */
+/**
+ * 상태별 필터 탭.
+ *
+ * 가로 ScrollView 를 쓰지 않는다. flex 컬럼 부모 안에서 목록과 공간을 다투다가
+ * 높이가 0 근처로 짜부라져 탭 글자가 보이지 않는 문제가 있었다.
+ * 탭이 5개뿐이라 좁은 화면에서는 줄바꿈으로 내려가는 편이 단순하고 안전하다.
+ */
 export default function FilterTabs({ value, onChange }: Props) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-    >
+    <View style={styles.row}>
       {TABS.map((tab) => {
         // 현재 선택된 탭인지 판정 (전체 탭은 value 가 undefined 일 때 선택됨)
         const selected = tab.value === value;
@@ -44,13 +46,14 @@ export default function FilterTabs({ value, onChange }: Props) {
           </Pressable>
         );
       })}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
