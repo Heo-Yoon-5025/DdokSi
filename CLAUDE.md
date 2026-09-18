@@ -175,6 +175,12 @@ but only 9 fields and **no committee information**. Field names differ from the 
   real bills (e.g. `BILL_NO` 2208675). Treat "fetched but empty" as a distinct outcome from
   "not fetched yet", or the batch re-calls the same bills forever.
 - An unknown `BILL_NO` returns `INFO-200`, which is absence, not an error.
+- **One 의안번호 can return more than one row.** `BILL_NO` 2221245 comes back with
+  `list_total_count: 2`: same `BILL_NAME` and `AGE`, different `BILL_ID`, and the first row's
+  `SUMMARY` is empty while the second holds the real text. Taking `rows().get(0)` throws away
+  text that was there. Match on `BILL_ID` against our `external_bill_id` instead — see
+  `BillSummaryCollectionService.selectRow`. Measured at 1 in 100 bills, so roughly 200 across
+  the full 19,447.
 - The API page lists 요청제한횟수 as 제한없음.
 
 > The response JSON is valid: newlines inside `SUMMARY` arrive correctly escaped as `\n`.
@@ -259,19 +265,19 @@ Do not assume they are available.
 
 ## Current Project State
 
-As of **2026-09-13**:
+As of **2026-09-18**:
 
 | Item | State |
 |---|---|
-| Git | 9 commits on `main`, pushed to `Heo-Yoon-5025/DdokSi` |
+| Git | 16 commits on `main`, pushed to `Heo-Yoon-5025/DdokSi`. Work goes through PRs (#1–#6); merged branches are deleted |
 | Backend | Flyway migrations, JPA entities, two collection batches, and a **read-only REST API** (`/api/bills`) |
 | Database schema | **10 tables created; entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
 | Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll. **No detail screen and no navigation library yet** |
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
-| Bill text (제안이유) | **Batch implemented and verified; full backfill not yet run** |
+| Bill text (제안이유) | **Full backfill running** (started 2026-09-18 23:00, 19,348 targets, ~2h20m). Resumable — an interrupted run continues from where it stopped |
 | AI analysis | Not implemented — it is blocked on the 제안이유 backfill, which supplies its input |
-| Tests | 55, all passing, none skipped (a local PostgreSQL and an API key are required) |
+| Tests | 56, all passing, none skipped (a local PostgreSQL and an API key are required) |
 
 ### REST API
 
@@ -345,6 +351,12 @@ so the bill is retried on a later run — the Assembly may publish the text afte
 `BillSummaryPersister` commits one transaction per 100 bills and checks the response's `BILL_ID`
 against `bill.external_bill_id`, skipping on mismatch. That guard matters because this API is keyed
 by 의안번호 rather than the bill id we key on everywhere else.
+
+`selectRow` picks the row whose `BILL_ID` matches ours **before** that guard runs, because the API
+sometimes returns several rows for one 의안번호 (see above). When no row matches it hands over the
+first one, so a genuinely wrong response still trips the mismatch guard — the fix must not weaken
+it. This was found by running 100 bills before the full backfill; the batch reported `건너뜀=1`
+and the log line was the only sign.
 
 Entry points, both disabled by default for the same reason as the list collector:
 - `ddoksi.collection.summary-backfill.enabled=true` — one-off fill at startup, optionally capped
