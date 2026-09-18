@@ -169,8 +169,11 @@ but only 9 fields and **no committee information**. Field names differ from the 
   Budget accordingly — 19,447 bills means 19,447 calls.
 - Five fields only: `BILL_NO`, `BILL_NAME`, `BILL_ID`, `SUMMARY`, `AGE`. Same `head` / `row`
   envelope as every other API here, so `AssemblyApiClient.fetch()` handles it unchanged.
-- `SUMMARY` length over a 40-bill sample: median 480, mean 662, max 3,149 characters. Stored as
-  `TEXT`; no length cap is safe to assume.
+- `SUMMARY` length, measured over all 19,406 texts collected: median 499, mean 633,
+  **max 10,349** characters. Stored as `TEXT`; no length cap is safe to assume — the earlier
+  40-bill sample put the maximum at 3,149, and the real one is over three times that. The long
+  tail is thin (58 bills over 3,000 characters, 0.3%) but it exists, so anything that slices this
+  text for a prompt has to handle it.
 - **A successful response can still carry no text.** `INFO-000` with `SUMMARY: null` happens for
   real bills (e.g. `BILL_NO` 2208675). Treat "fetched but empty" as a distinct outcome from
   "not fetched yet", or the batch re-calls the same bills forever.
@@ -265,7 +268,7 @@ Do not assume they are available.
 
 ## Current Project State
 
-As of **2026-09-18**:
+As of **2026-09-19**:
 
 | Item | State |
 |---|---|
@@ -275,8 +278,8 @@ As of **2026-09-18**:
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
 | Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll. **No detail screen and no navigation library yet** |
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
-| Bill text (제안이유) | **Full backfill running** (started 2026-09-18 23:00, 19,348 targets, ~2h20m). Resumable — an interrupted run continues from where it stopped |
-| AI analysis | Not implemented — it is blocked on the 제안이유 backfill, which supplies its input |
+| Bill text (제안이유) | **Full backfill done** (2026-09-19 01:21). Every one of the 19,447 bills has a `bill_summary` row; 19,406 carry text and 41 are genuinely empty |
+| AI analysis | Not implemented. **No longer blocked** — its input (12.3M characters of bill text) is now collected. Cost has to be estimated before any full run |
 | Tests | 56, all passing, none skipped (a local PostgreSQL and an API key are required) |
 
 ### REST API
@@ -357,6 +360,12 @@ sometimes returns several rows for one 의안번호 (see above). When no row mat
 first one, so a genuinely wrong response still trips the mismatch guard — the fix must not weaken
 it. This was found by running 100 bills before the full backfill; the batch reported `건너뜀=1`
 and the log line was the only sign.
+
+**Measured on the full run (2026-09-19, runId 48):** 19,348 bills fetched in 2h23m at 0.44s per
+bill, `신규=19,348 / 빈 본문=41 / 데이터없음=0 / 건너뜀=0`, and **not one warning or error in the
+whole log**. `데이터없음=0` means every bill our list collector knows about also has a 제안이유
+record — the two APIs agree on the population. `건너뜀=0` is the multi-row fix holding across
+19,348 calls; before it, the same population produced one skip per hundred bills.
 
 Entry points, both disabled by default for the same reason as the list collector:
 - `ddoksi.collection.summary-backfill.enabled=true` — one-off fill at startup, optionally capped
