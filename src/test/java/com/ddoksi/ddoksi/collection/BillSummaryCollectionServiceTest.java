@@ -171,6 +171,34 @@ class BillSummaryCollectionServiceTest {
     }
 
     @Test
+    @DisplayName("한 의안번호에 행이 여러 개 와도 우리 법안의 본문을 골라 저장한다")
+    void picksMatchingRowWhenResponseHasSeveral() {
+        // 응답이 실제로 여러 행인지 먼저 확인한다. 국회 쪽에서 중복 레코드가 정리되면
+        // 이 전제가 사라지므로, 그때는 조용히 통과시키지 않고 건너뛴 사실을 드러낸다.
+        AssemblyPage page = apiClient.fetchBillSummary(BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS);
+        Assumptions.assumeTrue(page.rows().size() > 1,
+                "국회 응답이 더 이상 다중 행이 아니라 건너뜁니다 (의안번호 "
+                        + BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS + ")");
+
+        // 첫 행은 본문이 비어 있다 — 그대로 집으면 받을 수 있는 본문을 버리게 된다
+        assertThat(textOf(page.rows().get(0), "SUMMARY")).isNull();
+
+        // 이 법안만 대상으로 남겨야 그 차례까지 수십 번 실호출하지 않는다
+        cleaner.clean();
+        Bill target = fixtures.seedOne(BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS);
+
+        SummaryResult result = summaryService.collectMissingSummaries(1);
+
+        assertThat(result.skipped()).isZero();
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.emptyContent()).isZero();
+
+        BillSummary stored = summaryRepository.findByBill(target).orElseThrow();
+        assertThat(stored.hasContent()).isTrue();
+        assertThat(stored.getExternalBillId()).isEqualTo(target.getExternalBillId());
+    }
+
+    @Test
     @DisplayName("존재하지 않는 의안번호는 오류가 아니라 데이터 없음으로 처리된다")
     void treatsMissingDataAsNotFound() {
         SummaryResult result = persister.persistChunk(
@@ -179,6 +207,16 @@ class BillSummaryCollectionServiceTest {
         assertThat(result.notFound()).isEqualTo(1);
         assertThat(result.skipped()).isZero();
         assertThat(result.inserted()).isZero();
+    }
+
+    /** 빈 문자열과 없는 필드를 null 로 모은다. 수집 코드와 같은 규칙으로 응답을 읽기 위해서다. */
+    private String textOf(JsonNode row, String field) {
+        JsonNode node = row.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asString("").strip();
+        return value.isEmpty() ? null : value;
     }
 
     /** 본문이 저장된 법안 id 목록. 재개 동작을 비교하는 데 쓴다. */

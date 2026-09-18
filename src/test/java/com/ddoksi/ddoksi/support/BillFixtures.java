@@ -41,6 +41,13 @@ public class BillFixtures {
     /** 제목에 "개인정보" 가 들어가는 의안번호. 키워드 검색 검증에 쓴다. */
     public static final String BILL_NO_WITH_KEYWORD = "2221128";
 
+    /**
+     * 한 의안번호에 응답 행이 2개 오는 것이 확인된 의안번호.
+     * 첫 행은 본문이 비어 있는 중복 레코드이고 실제 본문은 둘째 행에 있다.
+     * 행 선택 로직 검증에 쓴다.
+     */
+    public static final String BILL_NO_WITH_DUPLICATE_ROWS = "2221245";
+
     private final BillRepository billRepository;
     private final BillStatusHistoryRepository historyRepository;
 
@@ -62,41 +69,63 @@ public class BillFixtures {
     @Transactional
     public List<Bill> seed() {
         List<Bill> bills = new ArrayList<>();
-
         for (String line : readFixtureLines()) {
-            // 형식: 의안번호|국회의안ID|법안명|상태|처리결과원문|소관위원회|제안일|대표발의자|원문링크
-            // -1 을 주어 뒤쪽 빈 칸(처리결과원문 등)이 잘려나가지 않게 한다
-            String[] f = line.split("\\|", -1);
-            if (f.length < 9) {
-                throw new IllegalStateException("픽스처 형식이 잘못되었습니다: " + line);
+            bills.add(saveFixtureLine(line));
+        }
+        return bills;
+    }
+
+    /**
+     * 픽스처 중 의안번호가 일치하는 법안 하나만 심는다.
+     *
+     * <p>제안이유 수집은 "본문 없는 법안을 앞에서부터" 가져가는 구조라, 특정 법안 하나의
+     * 응답을 검증하려면 그 법안만 대상에 남아 있어야 한다. 전체를 심어두면 그 법안 차례가
+     * 오기까지 수십 번의 실호출이 일어난다.
+     *
+     * @param billNo 심을 의안번호
+     */
+    @Transactional
+    public Bill seedOne(String billNo) {
+        for (String line : readFixtureLines()) {
+            if (line.startsWith(billNo + "|")) {
+                return saveFixtureLine(line);
             }
+        }
+        throw new IllegalStateException("픽스처에 없는 의안번호입니다: " + billNo);
+    }
 
-            Bill bill = billRepository.save(Bill.builder()
-                    .billNo(f[0])
-                    .externalBillId(f[1])
-                    .title(f[2])
-                    .status(BillStatus.valueOf(f[3]))
-                    .procResultRaw(blankToNull(f[4]))
-                    .committeeName(blankToNull(f[5]))
-                    .proposedDate(LocalDate.parse(f[6]))
-                    .rstProposer(blankToNull(f[7]))
-                    .detailUrl(f[8])
-                    .assemblyAge((short) 22)
-                    .proposerKind("의원")
-                    .build());
-
-            // 수집 배치가 신규 법안에 남기는 것과 같은 모양의 최초 이력
-            historyRepository.save(BillStatusHistory.builder()
-                    .bill(bill)
-                    .fromStatus(null)
-                    .toStatus(bill.getStatus())
-                    .toProcResultRaw(bill.getProcResultRaw())
-                    .build());
-
-            bills.add(bill);
+    /** 픽스처 한 줄을 법안과 최초 이력으로 저장한다. */
+    private Bill saveFixtureLine(String line) {
+        // 형식: 의안번호|국회의안ID|법안명|상태|처리결과원문|소관위원회|제안일|대표발의자|원문링크
+        // -1 을 주어 뒤쪽 빈 칸(처리결과원문 등)이 잘려나가지 않게 한다
+        String[] f = line.split("\\|", -1);
+        if (f.length < 9) {
+            throw new IllegalStateException("픽스처 형식이 잘못되었습니다: " + line);
         }
 
-        return bills;
+        Bill bill = billRepository.save(Bill.builder()
+                .billNo(f[0])
+                .externalBillId(f[1])
+                .title(f[2])
+                .status(BillStatus.valueOf(f[3]))
+                .procResultRaw(blankToNull(f[4]))
+                .committeeName(blankToNull(f[5]))
+                .proposedDate(LocalDate.parse(f[6]))
+                .rstProposer(blankToNull(f[7]))
+                .detailUrl(f[8])
+                .assemblyAge((short) 22)
+                .proposerKind("의원")
+                .build());
+
+        // 수집 배치가 신규 법안에 남기는 것과 같은 모양의 최초 이력
+        historyRepository.save(BillStatusHistory.builder()
+                .bill(bill)
+                .fromStatus(null)
+                .toStatus(bill.getStatus())
+                .toProcResultRaw(bill.getProcResultRaw())
+                .build());
+
+        return bill;
     }
 
     /** 주석(#)과 빈 줄을 걸러낸 픽스처 본문만 돌려준다. */

@@ -148,7 +148,7 @@ public class BillSummaryCollectionService {
                     // INFO-200. 아직 국회 쪽에 본문이 등재되지 않은 법안이 여기에 해당한다.
                     return FetchedSummary.notFound(bill.getId(), bill.getBillNo());
                 }
-                JsonNode row = page.rows().get(0);
+                JsonNode row = selectRow(page.rows(), bill);
                 return new FetchedSummary(
                         bill.getId(),
                         bill.getBillNo(),
@@ -169,6 +169,35 @@ public class BillSummaryCollectionService {
             }
         }
         throw lastError;
+    }
+
+    /**
+     * 응답 행 중 우리가 찾는 법안의 것을 고른다.
+     *
+     * <p><b>한 의안번호에 행이 여러 개 오는 경우가 실재한다.</b> 의안번호 2221245 는
+     * {@code list_total_count=2} 로, 법안명과 대수가 같은데 BILL_ID 가 다른 행이 둘 온다.
+     * 그중 하나는 본문이 비어 있고 우리 DB 에 없는 국회 쪽 중복 레코드이며,
+     * 실제 본문은 나머지 행에 들어 있다. 첫 행만 집으면 받을 수 있는 본문을 버리고
+     * 의안 ID 불일치로 건너뛰게 된다.
+     *
+     * <p>그래서 BILL_ID 가 우리 {@code external_bill_id} 와 일치하는 행을 먼저 찾는다.
+     * 일치하는 행이 없으면 첫 행을 그대로 돌려준다 — 그 경우는 정말로 엉뚱한 응답이므로
+     * {@link BillSummaryPersister} 의 불일치 검사에 걸려 건너뛰는 것이 맞다.
+     */
+    private JsonNode selectRow(List<JsonNode> rows, Bill bill) {
+        if (rows.size() == 1) {
+            return rows.get(0);
+        }
+
+        for (JsonNode row : rows) {
+            if (bill.getExternalBillId().equals(textOrNull(row, "BILL_ID"))) {
+                return row;
+            }
+        }
+
+        log.warn("응답 {}행 중 의안 ID 가 일치하는 행이 없습니다: billNo={}, 기대={}",
+                rows.size(), bill.getBillNo(), bill.getExternalBillId());
+        return rows.get(0);
     }
 
     /** 빈 문자열과 없는 필드를 모두 null 로 모은다. 저장 쪽에서 한 가지 경우만 보게 하기 위해서다. */

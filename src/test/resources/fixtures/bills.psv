@@ -41,3 +41,6 @@
 2221311|PRC_Q2P6X0X9V0W3V1V5T1U4J4H6I8H9H9|기초연금법 일부개정법률안|PENDING||보건복지위원회|2026-09-10|곽규택|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_Q2P6X0X9V0W3V1V5T1U4J4H6I8H9H9&ageFrom=22&ageTo=22
 2221314|PRC_P2N6N0M9K0L2G1H2F4G1F0D8E8M9M6|5·18민주유공자예우 및 단체설립에 관한 법률 일부개정법률안|PENDING||정무위원회|2026-09-10|정진욱|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_P2N6N0M9K0L2G1H2F4G1F0D8E8M9M6&ageFrom=22&ageTo=22
 2221327|PRC_S2Q6P0O9X0W8U1V7T1I6J0H6I1G5F3|자율방범대 설치 및 운영에 관한 법률 일부개정법률안|PENDING|||2026-09-11|박균택|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_S2Q6P0O9X0W8U1V7T1I6J0H6I1G5F3&ageFrom=22&ageTo=22
+# 2221245 는 한 의안번호에 응답 행이 2개 오는 건이다 (본문 없는 중복 레코드 + 실제 본문).
+# 행 선택 로직 검증에 쓴다.
+2221245|PRC_R2R6Q0R9P0P8X1W9W1U7W5U4U3C2B4|방문판매 등에 관한 법률 일부개정법률안|PENDING||정무위원회|2026-09-09|박상혁|http://likms.assembly.go.kr/bill/billDetail.do?billId=PRC_R2R6Q0R9P0P8X1W9W1U7W5U4U3C2B4&ageFrom=22&ageTo=22
