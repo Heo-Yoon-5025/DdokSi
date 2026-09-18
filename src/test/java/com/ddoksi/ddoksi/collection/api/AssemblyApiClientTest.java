@@ -11,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -23,6 +24,7 @@ import tools.jackson.databind.ObjectMapper;
  * 이 클라이언트가 막아야 할 두 함정(User-Agent 누락 시 WAF 차단, 오류도 HTTP 200)은
  * 실제 서버가 어떻게 응답하는가에 대한 것이다. 목으로는 우리가 상상한 응답만 검증하게 된다.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 class AssemblyApiClientTest {
 

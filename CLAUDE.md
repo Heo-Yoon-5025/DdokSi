@@ -271,7 +271,7 @@ As of **2026-09-13**:
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
 | Bill text (제안이유) | **Batch implemented and verified; full backfill not yet run** |
 | AI analysis | Not implemented — it is blocked on the 제안이유 backfill, which supplies its input |
-| Tests | 53, all passing (a local PostgreSQL and an API key are required) |
+| Tests | 55, all passing, none skipped (a local PostgreSQL and an API key are required) |
 
 ### REST API
 
@@ -380,8 +380,29 @@ without re-collecting. `MERGED` was added in V3 after the real data showed it ou
 conversion, UUID generation, the composite key, and auditing — things `ddl-auto=validate`
 cannot catch, since it only checks that columns exist.
 
-**These tests require a local PostgreSQL to be running** (`brew services start postgresql@17`).
-There is no Testcontainers setup yet because no container runtime is installed on this machine.
+**Tests run against their own database, `ddoksi_test`, never the development database.** The
+collection batches commit by design — per-page and per-chunk commits are the whole point, so
+those tests cannot be wrapped in a rolled-back transaction. Earlier they committed into `ddoksi`
+and their leftovers mixed with real collected rows, which would have made any later bug
+impossible to attribute. `DatabaseCleaner` truncates between tests and **refuses to run unless
+the JDBC URL names `ddoksi_test`**, so a missing `@ActiveProfiles("test")` fails loudly instead
+of wiping 19,447 collected bills.
+
+One-time setup, then Flyway builds the schema on first run:
+
+```
+createdb -O ddoksi ddoksi_test
+```
+
+**Tests seed their own fixtures** (`BillFixtures`, data in `src/test/resources/fixtures/bills.psv`)
+rather than assuming a backfill has been run. They used to skip silently on an empty database,
+which meant a green build proved nothing. The fixture bill numbers are **real** public Assembly
+data on purpose: the 제안이유 tests call the live API with them, and invented numbers would return
+`INFO-200` for every row and exercise none of the storage path.
+
+**A local PostgreSQL must be running** (`brew services start postgresql@17`). Testcontainers is
+still not set up — `docker` is only a CLI here with no daemon, so it would mean installing
+OrbStack or Colima first. The fixtures carry over unchanged when that happens.
 
 Treat anything in **Planned** above as a direction, not a decision. Confirm with the user
 before introducing one of them into the build.

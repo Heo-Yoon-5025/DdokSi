@@ -6,7 +6,11 @@ import com.ddoksi.ddoksi.bill.entity.Bill;
 import com.ddoksi.ddoksi.bill.entity.BillSummary;
 import com.ddoksi.ddoksi.bill.repository.BillRepository;
 import com.ddoksi.ddoksi.bill.repository.BillSummaryRepository;
+import com.ddoksi.ddoksi.collection.api.AssemblyApiClient;
 import com.ddoksi.ddoksi.collection.api.AssemblyApiProperties;
+import com.ddoksi.ddoksi.collection.api.AssemblyPage;
+import com.ddoksi.ddoksi.support.BillFixtures;
+import com.ddoksi.ddoksi.support.DatabaseCleaner;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -17,62 +21,86 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Limit;
+import org.springframework.test.context.ActiveProfiles;
+import tools.jackson.databind.JsonNode;
 
 /**
- * 제안이유 수집 통합 테스트 — 실제 국회 API 를 호출하고 실제 DB 에 커밋한다.
+ * 제안이유 수집 통합 테스트 — 실제 국회 API 를 호출하고 테스트 DB 에 커밋한다.
  *
  * <p>{@link BillCollectionServiceTest} 와 같은 이유로 @Transactional 을 붙이지 않는다.
- * 묶음 단위 커밋이 이 배치의 설계 핵심이라, 테스트를 트랜잭션으로 감싸면 검증하려는 동작이 사라진다.
+ * 묶음 단위 커밋이 이 배치의 설계 핵심이라, 트랜잭션으로 감싸면 검증하려는 동작이 사라진다.
+ * 대신 매 테스트 시작 시 테스트 DB 를 비우고 픽스처를 다시 심는다.
  *
- * <p>법안 한 건당 API 를 한 번씩 부르므로 표본을 작게 잡는다.
+ * <p>픽스처의 의안번호는 실제 국회 데이터다. 지어낸 번호를 쓰면 응답이 전부
+ * INFO-200(데이터 없음)이 되어 본문 저장 경로를 한 줄도 지나지 않는다.
  */
+@ActiveProfiles("test")
 @SpringBootTest
 class BillSummaryCollectionServiceTest {
 
-    /** 표본 크기. 늘리면 그만큼 API 호출이 늘어난다. */
-    private static final int SAMPLE = 15;
+    /** 한 번에 받아올 표본 크기. 법안 1건당 API 1회이므로 작게 잡는다. */
+    private static final int SAMPLE = 10;
 
     @Autowired private BillSummaryCollectionService summaryService;
     @Autowired private BillSummaryPersister persister;
     @Autowired private BillSummaryRepository summaryRepository;
     @Autowired private BillRepository billRepository;
+    @Autowired private AssemblyApiClient apiClient;
     @Autowired private AssemblyApiProperties properties;
+    @Autowired private DatabaseCleaner cleaner;
+    @Autowired private BillFixtures fixtures;
 
     @BeforeEach
-    void requireData() {
+    void prepare() {
         Assumptions.assumeTrue(properties.hasKey(), "인증키가 없어 건너뜁니다 (.env 확인)");
-        Assumptions.assumeTrue(billRepository.count() > 0,
-                "수집된 법안이 없어 건너뜁니다 (먼저 목록 백필을 실행하세요)");
+        cleaner.clean();
+        fixtures.seed();
     }
 
     @Test
     @DisplayName("본문 없는 법안을 채우고, 채운 법안은 다시 대상이 되지 않는다")
     void fillsMissingSummariesAndExcludesThemAfterward() {
-        Assumptions.assumeTrue(summaryRepository.countBillsWithoutSummary() >= SAMPLE,
-                "본문 없는 법안이 표본 수보다 적어 건너뜁니다");
-
-        long before = summaryRepository.count();
+        long targetsBefore = summaryRepository.countBillsWithoutSummary();
+        assertThat(targetsBefore).isGreaterThanOrEqualTo(SAMPLE);
 
         SummaryResult result = summaryService.collectMissingSummaries(SAMPLE);
 
-        // 저장된 행 수와 집계가 어긋나면 어느 한쪽이 거짓말을 하고 있는 것이다
-        assertThat(summaryRepository.count() - before).isEqualTo(result.inserted());
+        // 표본 전부가 어떤 형태로든 판정되어야 한다 (저장했거나, 국회에 데이터가 없거나)
+        assertThat(result.inserted() + result.notFound()).isEqualTo(SAMPLE);
         assertThat(result.inserted()).isPositive();
         assertThat(result.skipped()).isZero();
 
-        // 대부분은 본문이 실제로 채워져야 한다. 빈 본문이 섞이는 것은 정상이지만
-        // 전부 비어 있다면 응답 필드를 잘못 읽고 있다는 신호다.
-        assertThat(result.emptyContent()).isLessThan(result.inserted());
+        // 저장된 행 수와 집계가 어긋나면 둘 중 하나가 거짓말을 하고 있는 것이다
+        assertThat(summaryRepository.count()).isEqualTo(result.inserted());
+
+        // 핵심: 채운 만큼 남은 대상이 줄어든다. 이 성질이 배치의 재개 가능성을 만든다.
+        assertThat(summaryRepository.countBillsWithoutSummary())
+                .isEqualTo(targetsBefore - result.inserted());
+    }
+
+    @Test
+    @DisplayName("이어서 실행하면 앞서 채운 법안을 건너뛰고 다음 법안을 받는다")
+    void resumesWithoutRefetching() {
+        summaryService.collectMissingSummaries(SAMPLE);
+        List<Long> firstRound = billIdsWithSummary();
+
+        summaryService.collectMissingSummaries(SAMPLE);
+        List<Long> secondRound = billIdsWithSummary();
+
+        // 1회차에서 채운 법안은 그대로 남아 있고, 그 위에 새로 쌓인다
+        assertThat(secondRound).containsAll(firstRound);
+        assertThat(secondRound).hasSizeGreaterThan(firstRound.size());
+        // 같은 법안에 행이 두 개 생기지 않는다
+        assertThat(secondRound).doesNotHaveDuplicates();
     }
 
     @Test
     @DisplayName("같은 법안을 다시 저장해도 행이 늘지 않는다 - 멱등성")
     void staysIdempotentOnRepeatedPersist() {
-        // 이미 본문이 있는 법안을 골라 같은 내용을 다시 저장해 본다.
-        // API 를 다시 부르지 않고 저장 단계만 검증하므로 호출을 낭비하지 않는다.
-        List<BillSummary> existing = summaryRepository.findAllWithBill(Limit.of(5));
-        Assumptions.assumeTrue(!existing.isEmpty(),
-                "저장된 본문이 없어 건너뜁니다 (앞의 테스트를 먼저 실행하세요)");
+        summaryService.collectMissingSummaries(3);
+
+        List<BillSummary> existing = summaryRepository.findAllWithBill(Limit.of(3));
+        Assumptions.assumeTrue(!existing.isEmpty(), "저장된 본문이 없어 건너뜁니다");
 
         List<FetchedSummary> replay = new ArrayList<>();
         for (BillSummary s : existing) {
@@ -84,7 +112,6 @@ class BillSummaryCollectionServiceTest {
         long before = summaryRepository.count();
         SummaryResult result = persister.persistChunk(replay);
 
-        // 내용이 같으므로 신규도 갱신도 없어야 한다
         assertThat(result.inserted()).isZero();
         assertThat(result.updated()).isZero();
         assertThat(result.unchanged()).isEqualTo(replay.size());
@@ -92,10 +119,41 @@ class BillSummaryCollectionServiceTest {
     }
 
     @Test
+    @DisplayName("본문이 비어 있는 법안도 행을 남겨 다시 호출하지 않는다")
+    void storesRowEvenWhenSummaryIsEmpty() {
+        // 이 의안번호는 정상 응답(INFO-000)인데 SUMMARY 만 null 로 오는 것이 확인된 건이다.
+        AssemblyPage page = apiClient.fetchBillSummary(BillFixtures.BILL_NO_WITH_EMPTY_SUMMARY);
+        assertThat(page.rows()).hasSize(1);
+
+        JsonNode row = page.rows().get(0);
+        assertThat(row.path("SUMMARY").isNull()).isTrue();
+
+        // 픽스처는 수십 건이라 여기서 걸러도 충분하다.
+        // 이것 하나 때문에 운영 저장소에 조회 메서드를 늘리지 않는다.
+        Bill bill = billRepository.findAll().stream()
+                .filter(b -> BillFixtures.BILL_NO_WITH_EMPTY_SUMMARY.equals(b.getBillNo()))
+                .findFirst()
+                .orElseThrow();
+        SummaryResult result = persister.persistChunk(List.of(new FetchedSummary(
+                bill.getId(), bill.getBillNo(), null,
+                row.path("BILL_ID").asString(""), true)));
+
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.emptyContent()).isEqualTo(1);
+
+        // 행이 남았으므로 다음 실행에서 이 법안은 대상에서 빠진다
+        BillSummary stored = summaryRepository.findByBill(bill).orElseThrow();
+        assertThat(stored.hasContent()).isFalse();
+        assertThat(summaryRepository.findBillsWithoutSummary(0L, Limit.of(100)))
+                .extracting(Bill::getBillNo)
+                .doesNotContain(BillFixtures.BILL_NO_WITH_EMPTY_SUMMARY);
+    }
+
+    @Test
     @DisplayName("응답의 의안 ID 가 다르면 저장하지 않고 건너뛴다")
     void skipsWhenExternalBillIdMismatches() {
         List<Bill> candidates = summaryRepository.findBillsWithoutSummary(0L, Limit.of(1));
-        Assumptions.assumeTrue(!candidates.isEmpty(), "본문 없는 법안이 없어 건너뜁니다");
+        assertThat(candidates).isNotEmpty();
 
         Bill target = candidates.get(0);
         long before = summaryRepository.count();
@@ -108,9 +166,36 @@ class BillSummaryCollectionServiceTest {
         assertThat(result.inserted()).isZero();
         assertThat(summaryRepository.count()).isEqualTo(before);
 
-        // 잘못된 본문이 붙지 않았는지 직접 확인한다
         Optional<BillSummary> stored = summaryRepository.findByBill(target);
         assertThat(stored).isEmpty();
+    }
+
+    @Test
+    @DisplayName("한 의안번호에 행이 여러 개 와도 우리 법안의 본문을 골라 저장한다")
+    void picksMatchingRowWhenResponseHasSeveral() {
+        // 응답이 실제로 여러 행인지 먼저 확인한다. 국회 쪽에서 중복 레코드가 정리되면
+        // 이 전제가 사라지므로, 그때는 조용히 통과시키지 않고 건너뛴 사실을 드러낸다.
+        AssemblyPage page = apiClient.fetchBillSummary(BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS);
+        Assumptions.assumeTrue(page.rows().size() > 1,
+                "국회 응답이 더 이상 다중 행이 아니라 건너뜁니다 (의안번호 "
+                        + BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS + ")");
+
+        // 첫 행은 본문이 비어 있다 — 그대로 집으면 받을 수 있는 본문을 버리게 된다
+        assertThat(textOf(page.rows().get(0), "SUMMARY")).isNull();
+
+        // 이 법안만 대상으로 남겨야 그 차례까지 수십 번 실호출하지 않는다
+        cleaner.clean();
+        Bill target = fixtures.seedOne(BillFixtures.BILL_NO_WITH_DUPLICATE_ROWS);
+
+        SummaryResult result = summaryService.collectMissingSummaries(1);
+
+        assertThat(result.skipped()).isZero();
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.emptyContent()).isZero();
+
+        BillSummary stored = summaryRepository.findByBill(target).orElseThrow();
+        assertThat(stored.hasContent()).isTrue();
+        assertThat(stored.getExternalBillId()).isEqualTo(target.getExternalBillId());
     }
 
     @Test
@@ -122,5 +207,22 @@ class BillSummaryCollectionServiceTest {
         assertThat(result.notFound()).isEqualTo(1);
         assertThat(result.skipped()).isZero();
         assertThat(result.inserted()).isZero();
+    }
+
+    /** 빈 문자열과 없는 필드를 null 로 모은다. 수집 코드와 같은 규칙으로 응답을 읽기 위해서다. */
+    private String textOf(JsonNode row, String field) {
+        JsonNode node = row.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asString("").strip();
+        return value.isEmpty() ? null : value;
+    }
+
+    /** 본문이 저장된 법안 id 목록. 재개 동작을 비교하는 데 쓴다. */
+    private List<Long> billIdsWithSummary() {
+        return summaryRepository.findAllWithBill(Limit.of(1000)).stream()
+                .map(s -> s.getBill().getId())
+                .toList();
     }
 }
