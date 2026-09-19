@@ -185,9 +185,12 @@ public final class BillAnalysisPrompt {
         properties.put("summary", nullableString);
         properties.put("example", nullableString);
         properties.put("background", nullableString);
+        // maxItems 를 넣지 않는다. structured outputs 가 배열에 대해 이 속성을 거부한다
+        // (400 invalid_request_error: "For 'array' type, property 'maxItems' is not supported").
+        // 개수 제한은 프롬프트가 지시하고 BillTopic.sanitize() 가 저장 직전에 강제하므로
+        // 스키마에서 빠져도 어휘 밖 값이나 초과 개수가 DB 에 들어가지는 않는다.
         properties.put("topics", Map.of(
                 "type", "array",
-                "maxItems", BillTopic.MAX_PER_BILL,
                 "items", Map.of("type", "string")));
 
         Map<String, Object> schema = new LinkedHashMap<>();
