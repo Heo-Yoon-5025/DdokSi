@@ -164,4 +164,26 @@ public class Bill extends BaseTimeEntity {
                 ? newProcResultRaw != null
                 : !this.procResultRaw.equals(newProcResultRaw);
     }
+
+    /** 국회가 "철회" 로 내려주는 원문 값. DISCARDED 안에서 폐기와 갈라내는 기준이다. */
+    private static final String PROC_RESULT_WITHDRAWN = "철회";
+
+    /**
+     * 상태 설명문. 대부분 {@link BillStatus#description()} 을 그대로 쓰고
+     * DISCARDED 만 국회 원문으로 갈라진다.
+     *
+     * <p>철회(166건)와 폐기(4건)가 같은 상태에 묶여 있는데 둘은 의미가 다르다.
+     * 철회는 발의한 의원이 스스로 거둬들인 것이고, 폐기는 심사 끝에 버려진 것이다.
+     * "심사 결과 더 진행되지 않습니다" 를 철회에 붙이면 사실과 다르다.
+     *
+     * <p>상태 enum 을 늘리는 대신 원문으로 갈라낸다. 새 상태를 만들면 마이그레이션과
+     * 앱 필터 변경이 따라오는데, 표시 문구 하나 때문에 치를 값이 아니다.
+     * 이 판정에 필요한 procResultRaw 를 enum 은 모르므로 엔티티가 맡는다.
+     */
+    public String statusDescription() {
+        if (status == BillStatus.DISCARDED && PROC_RESULT_WITHDRAWN.equals(procResultRaw)) {
+            return "발의한 의원이 스스로 거두어들였습니다.";
+        }
+        return status.description();
+    }
 }

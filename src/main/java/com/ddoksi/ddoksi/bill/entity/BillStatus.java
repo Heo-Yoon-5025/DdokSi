@@ -34,9 +34,40 @@ public enum BillStatus {
         return switch (this) {
             case PENDING -> "논의중";
             case PASSED -> "통과";
-            case MERGED -> "대안반영";
+            // "대안반영" 은 국회 용어를 그대로 옮긴 것이라 일반 독자에게 뜻이 전달되지 않는다.
+            // 무슨 일이 일어났는지는 description() 이 설명하고, 배지에는 읽히는 말을 쓴다.
+            case MERGED -> "통합 처리";
             case DISCARDED -> "폐기";
             case UNKNOWN -> "확인필요";
+        };
+    }
+
+    /**
+     * 라벨 아래에 붙는 한 문장 설명.
+     *
+     * <p>{@link #label()} 이 배지에 들어갈 두세 글자라면 이쪽은 그 상태가 무엇을 뜻하는지
+     * 풀어 쓴 문장이다. 특히 MERGED 는 라벨만으로는 아무것도 전달되지 않는다 —
+     * 법안이 끝났는지, 내용이 살아남았는지, 실패인지 아닌지가 전부 라벨 밖에 있다.
+     *
+     * <p>label() 과 같은 이유로 여기 한 곳에서 정의한다. 앱과 레터가 각자 문장을 만들면
+     * 같은 상태를 서로 다르게 설명하게 된다.
+     *
+     * <p>DISCARDED 는 철회와 폐기가 한 상태에 묶여 있어 이 문장만으로는 정확하지 않다.
+     * 국회 원문으로 갈라주는 {@link com.ddoksi.ddoksi.bill.entity.Bill#statusDescription()}
+     * 를 쓴다.
+     */
+    public String description() {
+        return switch (this) {
+            case PENDING -> "국회에서 아직 심사 중인 법안입니다.";
+            case PASSED -> "본회의를 통과했습니다.";
+            // 처리된 법안 중 가장 큰 비중(전체의 20.9%, PASSED 의 여섯 배)이라
+            // 폐기로도 통과로도 읽히면 안 된다.
+            // "대안이 본회의를 통과했다" 까지는 쓰지 않는다 — 위원장 제안 대안은
+            // 우리 수집 범위(의원 발의 법률안) 밖이라 그 결말을 우리가 알지 못한다.
+            case MERGED -> "비슷한 법안들과 하나로 합쳐졌습니다. "
+                    + "이 법안 번호로는 더 진행되지 않지만, 내용은 살아 있습니다.";
+            case DISCARDED -> "심사 결과 더 진행되지 않습니다.";
+            case UNKNOWN -> "상태를 확인할 수 없습니다.";
         };
     }
 }
