@@ -277,10 +277,80 @@ As of **2026-09-19**:
 | Database schema | **10 tables created; entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
 | Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll. **No detail screen and no navigation library yet** |
-| National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full 22nd-Assembly backfill collected (19,447 bills)** |
+| National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full backfill of 22nd-Assembly _member-proposed_ bills (19,447)**. That is one of four proposer types — see *Collection scope* below |
 | Bill text (제안이유) | **Full backfill done** (2026-09-19 01:21). Every one of the 19,447 bills has a `bill_summary` row; 19,406 carry text and 41 are genuinely empty |
 | AI analysis | Not implemented. **No longer blocked** — its input (12.3M characters of bill text) is now collected. Cost has to be estimated before any full run |
 | Tests | 56, all passing, none skipped (a local PostgreSQL and an API key are required) |
+
+### Collection scope — what the database does and does not contain
+
+Every one of the 19,447 rows is a **member-proposed bill (의원 발의 법률안) of the 22nd
+Assembly**, and nothing else. The scope is a property of the source, not a filter we apply: the
+collector calls exactly one API (`AssemblyApiClient.API_MEMBER_BILLS = "nzmimeepazxkubdpn"`).
+Verified against the stored data — zero rows whose `proposer_summary` lacks `의원`, and every row
+is `assembly_age = 22`.
+
+"Full 22nd-Assembly backfill" therefore means **full within that one source**. Four proposer types
+exist; we collect one (shares measured on `BILLRCP`, across all terms):
+
+| Proposer | Share | Collected |
+|---|---|---|
+| 의원 | 93.9% | yes |
+| 위원장 | 4.7% | no |
+| 정부 | 1.1% | no |
+| 의장 | 0.3% | no |
+
+Items that are not 법률안 (결의안, 예산안, 동의안 …, ~3% of all items) are absent for the same
+reason. Two of these gaps have service consequences:
+
+- **정부 제출 법안 carry weight out of proportion to their count.** Budget bills, government
+  reorganisation and headline policy arrive as government submissions. A "notable bills this
+  month" newsletter assembled from this table can miss the month's biggest item.
+- **위원장 제안 대안 are where `MERGED` bills end up, and they are not here.** `대안반영폐기` is
+  20.9% of the table (4,063 bills): the bill was formally discarded and its content folded into a
+  committee alternative that goes on to become law. That alternative is proposed by the committee
+  chair, so it falls outside our one source. We can say "this bill was folded into an alternative"
+  but cannot show which one or what became of it — and that is the most common outcome after
+  `PENDING`, so it is not an edge case.
+
+Widening collection is deferred behind the AI analysis work; the existing 19,447 bills are enough
+to build and judge that pipeline. This is recorded here so "full backfill" is not later read as
+"every 22nd-Assembly bill".
+
+### Committee names are split across a mid-term rename
+
+`committee_name` holds 26 distinct values but only **23 committees**. Three pairs are the same
+committee before and after the 22nd Assembly's mid-term reorganisation:
+
+| Name kept on closed bills | Bills | Current name | Bills |
+|---|---|---|---|
+| 환경노동위원회 | 145 | 기후에너지환경노동위원회 | 1,763 |
+| 기획재정위원회 | 439 | 재정경제기획위원회 | 1,432 |
+| 여성가족위원회 | 38 | 성평등가족위원회 | 219 |
+
+The signature is the status distribution: **each old name has zero `PENDING` bills.** Bills whose
+review had already finished kept the name frozen in the record, while bills still open moved to
+the new name. Nothing in the data marks the two as the same committee.
+
+`BillRepository.findDistinctCommitteeNames()` returns the raw `distinct`, so
+`GET /api/bills/committees` offers both names as separate filter options.
+
+In the app this merely hides older bills. **In the newsletter it is a silent failure**: a
+subscriber whose `subscription_committee` row names an old committee matches zero `PENDING` bills
+and receives an empty issue every month, with no error raised anywhere. Merge these names before
+the subscription feature ships.
+
+### Collected but not queryable
+
+- **`bill.proposer_kind` is NULL on all 19,447 rows.** With a single member-only source the value
+  would be constant; it starts mattering as soon as other proposer types are collected.
+- **Committee-stage results live only inside `bill.extra`** (`CMT_PROC_RESULT_CD`), never promoted
+  to a column, so they cannot be filtered or indexed. They carry values the plenary stage never
+  produces: `심사미료` (3), `회송` (1).
+- **The source has no topic or category classification at all.** 위원회 is the only subject-like
+  axis and it is an imperfect one — 법제사법위원회 (1,822) is a procedural gate every bill passes
+  through rather than a subject, and 행정안전위원회 (2,655) spans local government, policing,
+  disaster response and personal data. Any real topic classification has to be produced by us.
 
 ### REST API
 
