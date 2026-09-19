@@ -28,6 +28,10 @@ dependencies {
     implementation 'org.flywaydb:flyway-database-postgresql'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Claude API 공식 Java SDK. 법안 제안이유를 요약·분석하는 데 쓴다.
+    // 직접 HTTP 를 치지 않는 이유: 프롬프트 캐시(cache_control), structured outputs,
+    // Batch API 같은 것들이 요청 형태에 얽혀 있어 손으로 조립하면 틀리기 쉽다.
+    implementation 'com.anthropic:anthropic-java:2.34.0'
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'org.postgresql:postgresql'
     annotationProcessor 'org.projectlombok:lombok'

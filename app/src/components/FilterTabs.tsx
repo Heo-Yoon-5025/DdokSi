@@ -12,13 +12,14 @@ type Props = {
 
 /**
  * 탭 구성은 백엔드의 상태 4종을 그대로 노출한다.
- * 특히 '대안반영'은 전체의 약 21%로 '통과'보다 훨씬 많아, 숨기면 오히려 이해를 방해한다.
+ * 특히 '통합 처리'(대안반영)는 전체의 약 21%로 '통과'보다 훨씬 많아, 숨기면 오히려 이해를 방해한다.
  */
 const TABS: { label: string; value: FilterValue }[] = [
   { label: '전체', value: undefined },
   { label: '논의중', value: 'PENDING' },
   { label: '통과', value: 'PASSED' },
-  { label: '대안반영', value: 'MERGED' },
+  // 서버 BillStatus.label() 과 같은 문구여야 한다. 한쪽만 고치면 배지와 탭이 갈라진다.
+  { label: '통합 처리', value: 'MERGED' },
   { label: '폐기', value: 'DISCARDED' },
 ];
 

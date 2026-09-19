@@ -1,13 +1,19 @@
 package com.ddoksi.ddoksi.bill;
 
+import com.ddoksi.ddoksi.bill.dto.BillAnalysisResponse;
 import com.ddoksi.ddoksi.bill.dto.BillDetailResponse;
 import com.ddoksi.ddoksi.bill.dto.BillStatusChangeResponse;
 import com.ddoksi.ddoksi.bill.dto.BillSummaryResponse;
+import com.ddoksi.ddoksi.bill.entity.AnalysisStatus;
 import com.ddoksi.ddoksi.bill.entity.Bill;
+import com.ddoksi.ddoksi.bill.entity.BillAnalysis;
 import com.ddoksi.ddoksi.bill.entity.BillStatus;
+import com.ddoksi.ddoksi.bill.entity.BillSummary;
+import com.ddoksi.ddoksi.bill.repository.BillAnalysisRepository;
 import com.ddoksi.ddoksi.bill.repository.BillRepository;
 import com.ddoksi.ddoksi.bill.repository.BillSpecifications;
 import com.ddoksi.ddoksi.bill.repository.BillStatusHistoryRepository;
+import com.ddoksi.ddoksi.bill.repository.BillSummaryRepository;
 import com.ddoksi.ddoksi.common.dto.PageResponse;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +21,7 @@ import java.util.NoSuchElementException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,11 +41,26 @@ public class BillQueryService {
 
     private final BillRepository billRepository;
     private final BillStatusHistoryRepository statusHistoryRepository;
+    private final BillSummaryRepository summaryRepository;
+    private final BillAnalysisRepository analysisRepository;
+
+    /**
+     * 조회가 읽어갈 분석 버전. 생성용({@code prompt-version})과 나눠 둔 값이다.
+     *
+     * <p>둘을 나눈 이유는 전환을 통제하기 위해서다. v2 를 백필하는 동안에도 앱에는 v1 만
+     * 보이고, 전량이 채워진 뒤 이 값을 바꾸면 화면이 한 번에 넘어간다. 평상시에는 두 값이 같다.
+     */
+    @Value("${ddoksi.analysis.active-prompt-version}")
+    private String activePromptVersion;
 
     public BillQueryService(BillRepository billRepository,
-                            BillStatusHistoryRepository statusHistoryRepository) {
+                            BillStatusHistoryRepository statusHistoryRepository,
+                            BillSummaryRepository summaryRepository,
+                            BillAnalysisRepository analysisRepository) {
         this.billRepository = billRepository;
         this.statusHistoryRepository = statusHistoryRepository;
+        this.summaryRepository = summaryRepository;
+        this.analysisRepository = analysisRepository;
     }
 
     /**
@@ -64,7 +86,12 @@ public class BillQueryService {
                 .toList());
     }
 
-    /** 법안 상세. 상태 변경 이력을 함께 내보낸다. */
+    /**
+     * 법안 상세. 상태 변경 이력, 제안이유 원문, AI 분석을 함께 내보낸다.
+     *
+     * <p>원문과 분석 모두 없을 수 있다. 원문이 없는 법안이 41건 있고, 분석은 아직
+     * 생성되지 않았거나 실패했을 수 있다. 화면은 셋 중 무엇이 없어도 그려져야 한다.
+     */
     public BillDetailResponse findDetail(Long id) {
         Bill bill = billRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("법안을 찾을 수 없습니다: id=" + id));
@@ -74,7 +101,28 @@ public class BillQueryService {
                         .map(BillStatusChangeResponse::from)
                         .toList();
 
-        return BillDetailResponse.of(bill, history);
+        String billText = summaryRepository.findByBill(bill)
+                .map(BillSummary::getSummary)
+                .orElse(null);
+
+        return BillDetailResponse.of(bill, history, billText, findAnalysis(bill));
+    }
+
+    /**
+     * 활성 버전의 성공한 분석만 꺼낸다.
+     *
+     * <p><b>왜 generated_at 최신값을 쓰지 않는가.</b> v2 백필이 도중에 멈추면 어떤 법안은 v2,
+     * 어떤 법안은 v1 이 최신이 되어 한 화면 안에서 톤이 다른 요약이 섞인다.
+     * 어느 버전을 보여줄지는 시간이 아니라 설정이 정해야 한다.
+     *
+     * <p>FAILED 는 내보내지 않는다. 앱은 분석이 없을 때 원문만 보여주면 되고,
+     * 생성이 실패했다는 사실은 사용자에게 알릴 내용이 아니다.
+     */
+    private BillAnalysisResponse findAnalysis(Bill bill) {
+        return analysisRepository.findByBillAndPromptVersion(bill, activePromptVersion)
+                .filter(analysis -> analysis.getStatus() == AnalysisStatus.SUCCESS)
+                .map(BillAnalysisResponse::from)
+                .orElse(null);
     }
 
     /** 필터 UI 에 채울 상임위 목록. */

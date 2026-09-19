@@ -76,11 +76,13 @@ class BillControllerTest {
     }
 
     @Test
-    @DisplayName("대안반영(MERGED)이 별도 상태로 조회된다")
+    @DisplayName("통합 처리(MERGED)가 별도 상태로 조회된다")
     void filtersByMergedStatus() throws Exception {
+        // 라벨을 여기서 못 박아 두는 이유: 앱 필터 탭(FilterTabs.tsx)이 같은 문구를 들고 있어
+        // 서버만 바뀌면 배지와 탭이 조용히 갈라진다. 바꿀 때는 양쪽을 함께 바꾼다는 신호다.
         mockMvc.perform(get("/api/bills").param("status", "MERGED").param("size", "3"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].statusLabel").value("대안반영"));
+                .andExpect(jsonPath("$.content[0].statusLabel").value("통합 처리"));
     }
 
     @Test
