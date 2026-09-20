@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Link } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, fetchBills } from '../api/bills';
 import { BillSummary } from '../types/bill';
 import BillCard from '../components/BillCard';
@@ -26,6 +27,9 @@ const SEARCH_DEBOUNCE_MS = 400;
  * 전체 2만 건 규모라 한 번에 받지 않고 스크롤에 따라 이어서 받는다.
  */
 export default function HomeScreen() {
+  // 이 화면은 네비게이션 헤더를 숨겨 두었기 때문에 상태바 영역을 직접 피해야 한다.
+  // 상세 화면은 Stack 헤더가 있어 이 처리가 필요 없다.
+  const insets = useSafeAreaInsets();
   const [bills, setBills] = useState<BillSummary[]>([]);
   const [filter, setFilter] = useState<FilterValue>(undefined);
   const [searchInput, setSearchInput] = useState('');
@@ -99,7 +103,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.content}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
           <Text style={styles.logo}>똑시</Text>
           <Text style={styles.tagline}>국회에서 지금 무슨 일이 있었는지</Text>
         </View>
@@ -146,7 +150,7 @@ export default function HomeScreen() {
                 <Pressable
                   accessibilityRole="link"
                   accessibilityLabel={`${item.title} 상세 보기`}
-                  style={({ pressed }) => (pressed ? styles.cardPressed : null)}
+                  style={({ pressed }) => [styles.cardLink, pressed && styles.cardPressed]}
                 >
                   <BillCard bill={item} />
                 </Pressable>
@@ -254,6 +258,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: spacing.xl,
+  },
+  // 카드 전체를 탭 영역으로 만든다. Link 는 웹에서 <a> 로 렌더되는데, 폭을 명시하지 않으면
+  // 인라인 요소의 성질 때문에 안쪽 카드가 컨테이너 폭을 기준으로 줄바꿈하지 못할 수 있다.
+  cardLink: {
+    width: '100%',
+    display: 'flex',
   },
   cardPressed: {
     backgroundColor: colors.border,
