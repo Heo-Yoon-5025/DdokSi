@@ -26,8 +26,35 @@ export interface BillSummary {
   proposerSummary: string | null;
   /** ISO 8601 날짜 (YYYY-MM-DD) */
   proposedDate: string | null;
-  /** AI 요약. 분석 파이프라인이 아직 없어 현재는 항상 null */
+  /** AI 요약. 아직 분석되지 않은 법안은 null */
   summary: string | null;
+}
+
+/**
+ * AI 분석 결과.
+ *
+ * 항목마다 서로를 참조하지 않고 독립적으로 읽히게 생성된다. 상세 화면에서는 세로로
+ * 이어 보여주지만, 레터와 카드뉴스는 항목 단위로 잘라 쓸 수 있다.
+ *
+ * 근거가 없으면 서버가 비워 보내므로 항목별로 null 을 허용한다. "없으면 지어낸다" 를
+ * 막기 위한 설계라, 화면도 빈 항목을 자연스럽게 건너뛰어야 한다.
+ *
+ * pros/cons 는 내려오지 않는다. 입력인 제안이유가 발의자의 설득 문서라 반대 근거가
+ * 본문에 없고, 요구하면 모델이 만들어낸다.
+ */
+export interface BillAnalysis {
+  /** SNS 첫 줄로 그대로 쓸 한 문장. 법안명이 아니라 내용 핵심어를 담는다 */
+  hook: string | null;
+  /** 제도를 무엇에서 무엇으로 바꾸는지 */
+  summary: string | null;
+  /** 누구의 어떤 상황과 닿아 있는지 */
+  example: string | null;
+  /** 왜 지금 이 법안이 나왔는지 */
+  background: string | null;
+  /** 고정 어휘에서 고른 주제 태그 0~2개 */
+  topics: string[];
+  /** 품질 문제를 추적할 때 필요하다 */
+  generatedModel: string | null;
 }
 
 /** 상태 변경 이력 한 건 */
@@ -49,6 +76,12 @@ export interface BillDetail extends Omit<BillSummary, 'summary'> {
   procDate: string | null;
   /** 국회 공식 페이지. AI 요약이 틀렸을 때 원문을 확인할 경로 */
   detailUrl: string | null;
+  /** 상태를 풀어 쓴 한 문장. 서버가 내려준다 — 앱과 레터가 각자 문장을 만들면 갈라진다 */
+  statusDescription: string | null;
+  /** 제안이유 및 주요내용 원문. 국회가 본문을 올리지 않은 41건은 null */
+  billText: string | null;
+  /** 아직 생성 전이거나 실패한 법안은 null. 화면은 이것이 없어도 그려져야 한다 */
+  analysis: BillAnalysis | null;
   statusHistory: BillStatusChange[];
 }
 
