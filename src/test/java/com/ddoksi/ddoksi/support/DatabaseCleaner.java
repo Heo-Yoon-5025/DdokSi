@@ -30,6 +30,7 @@ public class DatabaseCleaner {
      */
     private static final String TABLES = String.join(", ",
             "bill_summary", "bill_status_history", "bill_analysis",
+            "analysis_batch_item", "analysis_batch",
             "bill_raw", "bill", "collection_run",
             "letter_delivery", "letter_issue",
             "subscription_committee", "subscriber");
