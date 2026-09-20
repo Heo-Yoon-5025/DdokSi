@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Link } from 'expo-router';
 import { ApiError, fetchBills } from '../api/bills';
 import { BillSummary } from '../types/bill';
 import BillCard from '../components/BillCard';
@@ -137,7 +138,20 @@ export default function HomeScreen() {
           <FlatList
             data={bills}
             keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => <BillCard bill={item} />}
+            renderItem={({ item }) => (
+              // Link 를 쓰면 웹에서 진짜 <a href> 가 된다. 레터와 SNS 가 거는 링크가
+              // 이 경로이므로 우클릭·새 탭·크롤러가 모두 동작해야 한다.
+              // params 를 객체로 주는 형태는 typedRoutes 가 경로를 검사해 준다.
+              <Link href={{ pathname: '/bills/[id]', params: { id: item.id } }} asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`${item.title} 상세 보기`}
+                  style={({ pressed }) => (pressed ? styles.cardPressed : null)}
+                >
+                  <BillCard bill={item} />
+                </Pressable>
+              </Link>
+            )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={<Text style={styles.empty}>해당하는 법안이 없습니다.</Text>}
             style={styles.list}
@@ -240,6 +254,9 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: spacing.xl,
+  },
+  cardPressed: {
+    backgroundColor: colors.border,
   },
   separator: {
     height: 1,
