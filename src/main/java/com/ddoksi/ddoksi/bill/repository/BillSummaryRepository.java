@@ -2,6 +2,7 @@ package com.ddoksi.ddoksi.bill.repository;
 
 import com.ddoksi.ddoksi.bill.entity.Bill;
 import com.ddoksi.ddoksi.bill.entity.BillSummary;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Limit;
@@ -43,6 +44,23 @@ public interface BillSummaryRepository extends JpaRepository<BillSummary, Long> 
      */
     @Query("select s from BillSummary s join fetch s.bill order by s.id")
     List<BillSummary> findAllWithBill(Limit limit);
+
+    /**
+     * 여러 법안의 본문을 한 번에 읽는다.
+     *
+     * <p>배치 분석은 한 번에 수천 건을 제출하므로 법안마다 {@link #findByBill} 을 부르면
+     * 제출 준비에만 수천 번의 왕복이 생긴다. 엔티티가 아니라 {@code (법안 id, 본문)} 쌍만
+     * 돌려주는 이유는 필요한 것이 그것뿐이고, 지연 로딩 프록시를 트랜잭션 밖으로
+     * 들고 나가지 않기 위해서다.
+     *
+     * <p>본문이 비어 있는 법안은 여기서 걸러진다. 분석할 입력이 없으면 보낼 이유도 없다.
+     */
+    @Query("""
+            select s.bill.id, s.summary from BillSummary s
+            where s.bill.id in :billIds
+              and s.summary is not null and s.summary <> ''
+            """)
+    List<Object[]> findSummaryTextsByBillIds(@Param("billIds") Collection<Long> billIds);
 
     /** 본문 수집이 얼마나 남았는지 로그와 운영 확인에 쓴다. */
     @Query("""
