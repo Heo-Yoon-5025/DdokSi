@@ -201,6 +201,44 @@ class EntityPersistenceTest {
     }
 
     @Test
+    @DisplayName("AnalysisBatch + Item - 복합키와 상태 전이가 동작한다")
+    void analysisBatchRoundTrip() {
+        Bill bill = Bill.builder()
+                .externalBillId("TEST_BILL_6")
+                .title("배치 분석 법률안")
+                .build();
+        em.persist(bill);
+        em.flush();
+
+        AnalysisBatch batch = AnalysisBatch.builder()
+                .providerBatchId("msgbatch_test")
+                .promptVersion("v1")
+                .model("claude-opus-5")
+                .requestCount(1)
+                .build();
+        em.persist(batch);
+        em.flush();
+
+        em.persist(new AnalysisBatchItem(batch.getId(), bill.getId(), "해시A"));
+        em.flush();
+
+        // 상태 전이가 DB 까지 내려가는지 본다. 수거 여부를 잘못 기억하면
+        // 이미 값을 치른 배치를 다시 제출하게 된다.
+        batch.markCollected(1, 0, 0);
+        em.flush();
+        em.clear();
+
+        AnalysisBatch found = em.find(AnalysisBatch.class, batch.getId());
+        assertThat(found.getStatus()).isEqualTo(AnalysisBatchStatus.COLLECTED);
+        assertThat(found.getCollectedAt()).isNotNull();
+        assertThat(found.isPending()).isFalse();
+
+        AnalysisBatchItem item = em.find(AnalysisBatchItem.class,
+                new AnalysisBatchItemId(batch.getId(), bill.getId()));
+        assertThat(item.getSourceHash()).isEqualTo("해시A");
+    }
+
+    @Test
     @DisplayName("Subscriber - UUID 토큰이 생성되고 구독 생명주기가 동작한다")
     void subscriberLifecycle() {
         Subscriber subscriber = Subscriber.builder().email("Reader@Example.com").build();

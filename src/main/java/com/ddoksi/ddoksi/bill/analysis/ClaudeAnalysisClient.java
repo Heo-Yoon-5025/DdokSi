@@ -46,7 +46,22 @@ public class ClaudeAnalysisClient {
      * <p>상한은 쓰지 않으면 과금되지 않는다. 반대로 빠듯하게 잡으면 응답이 문장 중간에서
      * 잘리고, 잘린 JSON 은 파싱 실패로 이어져 재호출 비용이 발생한다.
      */
-    private static final long MAX_TOKENS = 16_000L;
+    static final long MAX_TOKENS = 16_000L;
+
+    /**
+     * effort 와 출력 스키마. 동기 경로와 배치 경로가 함께 쓴다.
+     *
+     * <p>두 경로가 이 설정을 각자 만들면 한쪽만 고쳤을 때 결과가 갈린다. 그리고 그 차이는
+     * 예외가 아니라 "배치로 돌린 법안만 분석 품질이 다르다" 는 형태로 나타나 알아채기 어렵다.
+     */
+    static OutputConfig outputConfig() {
+        return OutputConfig.builder()
+                .effort(OutputConfig.Effort.LOW)
+                .format(JsonOutputFormat.builder()
+                        .schema(JsonValue.from(BillAnalysisPrompt.outputSchema()))
+                        .build())
+                .build();
+    }
 
     private final AnthropicClient client;
     private final ObjectMapper objectMapper;
@@ -77,12 +92,7 @@ public class ClaudeAnalysisClient {
                 .maxTokens(MAX_TOKENS)
                 // 적응형 추론 유지. 깊이는 effort 로 조절한다.
                 .thinking(ThinkingConfigAdaptive.builder().build())
-                .outputConfig(OutputConfig.builder()
-                        .effort(OutputConfig.Effort.LOW)
-                        .format(JsonOutputFormat.builder()
-                                .schema(JsonValue.from(BillAnalysisPrompt.outputSchema()))
-                                .build())
-                        .build())
+                .outputConfig(outputConfig())
                 // 시스템 프롬프트는 19,406번 동일하므로 캐시 대상이다.
                 // plain .system(String) 오버로드는 cache_control 을 실을 수 없다.
                 .systemOfTextBlockParams(List.of(TextBlockParam.builder()
@@ -93,8 +103,8 @@ public class ClaudeAnalysisClient {
                 .build();
 
         Message response = client.messages().create(params);
-        logUsage(bill, response);
-        return parse(extractText(response), bill);
+        logUsage(bill.getId(), response.usage());
+        return parse(extractText(response), bill.getId());
     }
 
     /**
@@ -104,21 +114,25 @@ public class ClaudeAnalysisClient {
      * 섞여도 이렇게 되므로, 로그로 확인할 수 있게 해 둔다. 전량 실행 전에
      * {@code 캐시읽기} 가 0 이 아닌지 반드시 본다.
      */
-    private void logUsage(Bill bill, Message response) {
+    private void logUsage(Long billId, Usage usage) {
         if (!log.isDebugEnabled()) {
             return;
         }
-        Usage usage = response.usage();
         log.debug("분석 호출: billId={} 입력={} 캐시쓰기={} 캐시읽기={} 출력={}",
-                bill.getId(),
+                billId,
                 usage.inputTokens(),
                 usage.cacheCreationInputTokens().orElse(0L),
                 usage.cacheReadInputTokens().orElse(0L),
                 usage.outputTokens());
     }
 
-    /** 응답에서 텍스트 블록만 이어 붙인다. thinking 블록은 여기서 걸러진다. */
-    private String extractText(Message response) {
+    /**
+     * 응답에서 텍스트 블록만 이어 붙인다. thinking 블록은 여기서 걸러진다.
+     *
+     * <p>{@link ClaudeBatchAnalysisClient} 도 같은 해석을 써야 한다. 동기 경로와 배치 경로가
+     * 응답을 다르게 읽으면 어느 경로로 만들었느냐에 따라 저장 결과가 갈린다.
+     */
+    String extractText(Message response) {
         StringBuilder text = new StringBuilder();
         response.content().forEach(block -> block.text().ifPresent(t -> text.append(t.text())));
         return text.toString().strip();
@@ -131,9 +145,9 @@ public class ClaudeAnalysisClient {
      * 올려 호출부가 재시도하게 한다. 조용히 빈 결과를 돌려주면 그 법안은 빈 분석이
      * 성공으로 저장되어 다시는 재시도되지 않는다.
      */
-    private AnalysisResult parse(String json, Bill bill) {
+    AnalysisResult parse(String json, Long billId) {
         if (json.isEmpty()) {
-            throw new IllegalStateException("응답에 텍스트 블록이 없습니다: billId=" + bill.getId());
+            throw new IllegalStateException("응답에 텍스트 블록이 없습니다: billId=" + billId);
         }
         JsonNode root = objectMapper.readTree(json);
         List<String> topics = new java.util.ArrayList<>();
@@ -142,7 +156,7 @@ public class ClaudeAnalysisClient {
         if (BillTopic.hasUnknown(topics)) {
             // 프롬프트가 어휘를 지켰는지 보는 신호. 파일럿에서 이 경고가 잦으면
             // 스키마에 enum 을 거는 것을 검토한다.
-            log.warn("어휘 밖 주제 태그를 걸러냈습니다: billId={}, 응답={}", bill.getId(), topics);
+            log.warn("어휘 밖 주제 태그를 걸러냈습니다: billId={}, 응답={}", billId, topics);
         }
 
         return new AnalysisResult(
