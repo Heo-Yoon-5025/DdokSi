@@ -43,6 +43,7 @@ public class BillQueryService {
     private final BillStatusHistoryRepository statusHistoryRepository;
     private final BillSummaryRepository summaryRepository;
     private final BillAnalysisRepository analysisRepository;
+    private final CommitteeNameResolver committeeResolver;
 
     /**
      * 조회가 읽어갈 분석 버전. 생성용({@code prompt-version})과 나눠 둔 값이다.
@@ -56,11 +57,13 @@ public class BillQueryService {
     public BillQueryService(BillRepository billRepository,
                             BillStatusHistoryRepository statusHistoryRepository,
                             BillSummaryRepository summaryRepository,
-                            BillAnalysisRepository analysisRepository) {
+                            BillAnalysisRepository analysisRepository,
+                            CommitteeNameResolver committeeResolver) {
         this.billRepository = billRepository;
         this.statusHistoryRepository = statusHistoryRepository;
         this.summaryRepository = summaryRepository;
         this.analysisRepository = analysisRepository;
+        this.committeeResolver = committeeResolver;
     }
 
     /**
@@ -125,9 +128,15 @@ public class BillQueryService {
                 .orElse(null);
     }
 
-    /** 필터 UI 에 채울 상임위 목록. */
+    /**
+     * 필터 UI 에 채울 상임위 목록.
+     *
+     * <p>개편 전후로 갈라진 이름은 정식 이름으로 접어 내보낸다. 접지 않으면 같은 위원회가
+     * 두 번 보이고, 구독자가 옛 이름을 골랐을 때 매달 빈 레터를 받는다.
+     * 실측 기준 raw 25개가 22개로 줄어든다.
+     */
     public List<String> findCommitteeNames() {
-        return billRepository.findDistinctCommitteeNames();
+        return committeeResolver.toCanonicalNames(billRepository.findDistinctCommitteeNames());
     }
 
     /**
@@ -143,7 +152,9 @@ public class BillQueryService {
         }
         String committee = blankToNull(committeeName);
         if (committee != null) {
-            conditions.add(BillSpecifications.inCommittee(committee));
+            // 옛 이름으로 기록된 법안까지 함께 찾는다. 알 수 없는 이름이면 그대로 한 건이 되어
+            // 기존과 똑같이 동작한다.
+            conditions.add(BillSpecifications.inCommittees(committeeResolver.expand(committee)));
         }
         String searchWord = blankToNull(keyword);
         if (searchWord != null) {
