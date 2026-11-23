@@ -162,12 +162,14 @@ export default function HomeScreen() {
             contentContainerStyle={styles.listContent}
             onEndReached={loadMore}
             onEndReachedThreshold={0.5}
+            // 추가 로딩 중일 때만 하단 스피너를 단다.
+            // RN 0.88 타입부터 null 을 받지 않으므로 "없음" 은 undefined 로 넘긴다
             ListFooterComponent={
               loadingMore ? (
                 <View style={styles.footer}>
                   <ActivityIndicator color={colors.textMuted} />
                 </View>
-              ) : null
+              ) : undefined
             }
           />
         )}
