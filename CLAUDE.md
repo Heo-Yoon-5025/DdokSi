@@ -20,6 +20,7 @@ two channels: a **monthly email newsletter** and a **mobile app**.
 | Persistence | Spring Data JPA / Hibernate | managed by Boot |
 | Validation | Jakarta Bean Validation (`spring-boot-starter-validation`) | managed by Boot |
 | Boilerplate reduction | Lombok | managed by Boot |
+| Claude API client | `com.anthropic:anthropic-java` | 2.34.0 |
 | Dependency management | `io.spring.dependency-management` plugin | 1.1.7 |
 
 > **Spring Boot 4 note:** starter artifact names differ from Boot 2/3. This project uses
@@ -98,8 +99,17 @@ PostgreSQL → Oracle later would mean rewriting SQL and taking on licensing cos
 
 | Layer | Choice |
 |---|---|
-| Provider | Anthropic Claude API |
-| Purpose | Generate per-bill summaries, plain-language examples, pro/con arguments, and background context |
+| Provider | Anthropic Claude API (`com.anthropic:anthropic-java` 2.34.0) |
+| Model | `claude-opus-5`, adaptive thinking with `output_config.effort = low` |
+| Output | `hook` / `summary` / `example` / `background` / `topics` — structured outputs (JSON schema) |
+| Purpose | Turn 제안이유 into plain-language explanation for the app and the newsletter |
+
+**`pros` / `cons` are deliberately not generated.** The input (제안이유) is the proposer's own
+case for the bill, so counter-arguments are structurally absent from it. Asked for them, the model
+invents them — and 19,406 bills cannot be human-reviewed. In political content that is fatal. The
+columns stay for a future version if a sourced input appears; committee meeting minutes were
+evaluated and rejected (PDF, per-meeting rather than per-bill, 43% coverage and only 25% for
+`PENDING`).
 
 ### Infrastructure
 
@@ -256,31 +266,30 @@ Do not assume they are available.
 
 | Concern | Candidate | Status |
 |---|---|---|
-| Batch / scheduled collection | Spring Batch, or `@Scheduled` + services | Undecided |
 | Containerization | Docker (OrbStack / Colima) for deployment | Deferred — nothing installed locally |
 | Email delivery | AWS SES | Planned |
 | HTTP client for the Open API | `RestClient` | Undecided |
 | Operational endpoints | Spring Boot Actuator | Not added |
 | Authentication / authorization | — | Undecided |
-| Mobile state management & navigation | — | Undecided |
+| Mobile state management | — | Undecided |
 
 ---
 
 ## Current Project State
 
-As of **2026-09-19**:
+As of **2026-10-12**:
 
 | Item | State |
 |---|---|
-| Git | 16 commits on `main`, pushed to `Heo-Yoon-5025/DdokSi`. Work goes through PRs (#1–#6); merged branches are deleted |
+| Git | Pushed to `Heo-Yoon-5025/DdokSi`. Work goes through PRs (#1–#14); merged branches are deleted |
 | Backend | Flyway migrations, JPA entities, two collection batches, and a **read-only REST API** (`/api/bills`) |
-| Database schema | **10 tables created; entity mappings verified by tests** (see below) |
+| Database schema | **13 tables (V1–V7); entity mappings verified by tests** (see below) |
 | PostgreSQL | Running locally via `brew services` (`postgresql@17`) |
-| Mobile app | Expo project in `app/`; main screen runs on the **real API** — list, status filter, keyword search, infinite scroll. **No detail screen and no navigation library yet** |
+| Mobile app | Expo project in `app/` with **Expo Router**; list and **detail** screens run on the real API. Verified on a physical iPhone |
 | National Assembly Open API | Key issued (in gitignored `.env`). **Integrated — full backfill of 22nd-Assembly _member-proposed_ bills (19,447)**. That is one of four proposer types — see *Collection scope* below |
 | Bill text (제안이유) | **Full backfill done** (2026-09-19 01:21). Every one of the 19,447 bills has a `bill_summary` row; 19,406 carry text and 41 are genuinely empty |
-| AI analysis | Not implemented. **No longer blocked** — its input (12.3M characters of bill text) is now collected. Cost has to be estimated before any full run |
-| Tests | 56, all passing, none skipped (a local PostgreSQL and an API key are required) |
+| AI analysis | **Implemented — sync and Batch paths, both verified against the live API.** 120 bills analysed so far; the remaining 19,286 are a cost decision, not an engineering one (~₩160,000) |
+| Tests | 88, all passing, none skipped (a local PostgreSQL and an API key are required) |
 
 ### Collection scope — what the database does and does not contain
 
@@ -332,13 +341,26 @@ The signature is the status distribution: **each old name has zero `PENDING` bil
 review had already finished kept the name frozen in the record, while bills still open moved to
 the new name. Nothing in the data marks the two as the same committee.
 
-`BillRepository.findDistinctCommitteeNames()` returns the raw `distinct`, so
-`GET /api/bills/committees` offers both names as separate filter options.
+**That signature alone is not enough.** Five 특별위원회 also have zero `PENDING` bills, but those
+are fixed-term bodies whose mandate ended — not renames. The correct rule is **"a 상임위원회 with
+zero `PENDING`"**; special committees are never merged. Applying the loose rule would have folded
+five of them into unrelated standing committees.
+
+**Resolved in V7 by `committee_alias`** (old name → current name, three rows).
+`CommitteeNameResolver.expand()` returns every name for a committee so a query on the current name
+also finds bills recorded under the old one — and it works when the *old* name is the input, since
+an app or a stored subscription may still hold it. `toCanonicalNames()` folds the list for the
+filter UI: 25 raw values become 22.
+
+`bill.committee_name` itself is never rewritten. It is what the Assembly reported, that bill really
+was handled under '환경노동위원회', and the collector would restore the original value on the next
+run anyway. Alias chains (A→B→C) are forbidden but resolved to their endpoint with a warning —
+moving only one hop would mistake an intermediate name for the canonical one, silently.
 
 In the app this merely hides older bills. **In the newsletter it is a silent failure**: a
 subscriber whose `subscription_committee` row names an old committee matches zero `PENDING` bills
-and receives an empty issue every month, with no error raised anywhere. Merge these names before
-the subscription feature ships.
+and receives an empty issue every month, with no error raised anywhere. **Resolved in V7** — see
+the alias table below.
 
 ### Collected but not queryable
 
@@ -371,7 +393,7 @@ Three deliberate choices, each fixing a problem that actually occurred:
 - **Responses use our own `PageResponse`, not Spring's `Page`.** `Page`'s JSON shape has changed
   across Spring versions, which would make an internal class the app's contract.
 
-Status labels (`논의중`, `통과`, `대안반영`, `폐기`) come from `BillStatus.label()` and ship in the
+Status labels (`논의중`, `통과`, `통합 처리`, `폐기`) come from `BillStatus.label()` and ship in the
 response, so the app and the newsletter cannot drift into different wording for the same state.
 
 CORS is limited to configured origins (`ddoksi.cors.allowed-origins`) — never a wildcard. Expo web
@@ -443,7 +465,92 @@ Entry points, both disabled by default for the same reason as the list collector
 - the nightly cron at `ddoksi.collection.scheduled.summary-cron` (04:00, after the 03:30 list run),
   capped at `summary-max-bills` per run so a backlog never stretches the nightly batch
 
-### Schema (V1–V4)
+### AI analysis batch
+
+`BillAnalysisService` (sync) and `BillAnalysisBatchService` (Batch API) do the same work. The
+sync path is for small runs and the nightly top-up; **the full backfill goes through Batch**,
+where every token is 50% off.
+
+The prompt, the output schema and the input hash all live in `BillAnalysisPrompt` because they
+change together — touch one and the result changes, so `prompt_version` has to move too.
+
+**Measured, not assumed.** A 100-bill pilot (2026-09-20) broke three of our estimates: Korean is
+**0.99 characters per token** (not 1.5), the system prompt is **2,263 tokens** (not 1,067), and
+reasoning tokens are **effectively zero** at `effort = low`. Output settled at 268 characters, 58%
+of the budget. Per bill: 698 uncached input / 2,240 cache read / 320 output tokens.
+
+**Why `effort = low` but thinking left on.** Opus 5 has thinking on by default and bills those
+tokens at the *output* rate, so the default would have added hundreds of dollars over 19,406 bills.
+Turning thinking off is not the answer either — it has a known failure where `<thinking>` tags leak
+into the response. Lowering the depth gets the cost without the trap.
+
+**Two rules keep the Batch path from paying twice. Both are pinned by tests.**
+
+1. **Collect outstanding batches before submitting new ones, and keep one batch in flight.**
+   The query picks bills with no analysis row — but a bill that is *already submitted* has no
+   analysis row either, so "in flight" and "not started" look identical. A cursor covers this
+   within one run; it does not survive a restart, and the database does.
+2. **Match results by `custom_id`, never by position.** Results do not come back in the order they
+   were sent. Matching by position attaches an analysis to the wrong bill with no exception and no
+   empty field — nothing reveals it short of reading the text.
+
+`analysis_batch` exists for the gap the sync path does not have: submission commits the charge,
+results arrive up to 24 hours later, and a batch id held only in memory disappears with a restart.
+`analysis_batch_item` freezes the input hash at submit time — recomputing at collection would
+store the hash of an input we never sent if the title or committee name changed in between, and
+committee names have in fact changed.
+
+**Cache TTL is 1 hour here, 5 minutes on the sync path** — the only parameter that differs. One
+1-hour write costs 2,263 tokens more than list price while one read saves 2,037, so a write pays
+for itself after 1.1 reads; a batch can take longer than five minutes, and an expired cache loses
+the reads entirely. Everything else is shared through `ClaudeAnalysisClient.outputConfig()` so the
+two paths cannot drift.
+
+**Verified against the live API (2026-10-05):** 20 bills submitted and collected, 20/20 succeeded,
+0 errored, 0 missing. Cache read 33,945 tokens = 15 hits out of 20 — **caching does work inside a
+batch**, which was the open question. Results survived well past the 24-hour processing limit and
+were collected on day 15, confirming the 29-day retention.
+
+Batches are sized at 2,000 bills. The limit is 100,000 requests or 256MB and **size binds first**:
+the system prompt (4.8KB) rides on every request, so one request is ~7KB and the whole corpus in a
+single batch would be a 132MB POST. Batch size does not change the bill — what it changes is how
+much is irreversibly committed per submission.
+
+Entry points, disabled by default like every other batch, with one more reason — a call is money:
+- `ddoksi.analysis.backfill.enabled=true` — sync, capped by `max-bills`
+- `ddoksi.analysis.batch-backfill.enabled=true` — Batch. `max-bills=0` collects outstanding
+  batches without submitting anything new
+- nightly cron at `ddoksi.analysis.scheduled.cron` (04:30, after the 04:00 summary run)
+
+### Mobile app
+
+Expo SDK 57 with **Expo Router**, routes rooted at `src/app`. The route root is not the default
+`app/` because the Expo project folder is itself called `app` — that would give `app/app`. SDK 57
+picks up `src/app` automatically when a `src` directory exists.
+
+```
+src/app/_layout.tsx      Stack + shared header
+src/app/index.tsx        list    → /
+src/app/bills/[id].tsx   detail  → /bills/1107
+```
+
+**Expo Router was chosen for the newsletter.** A newsletter without links to the bills does not
+work, and file-based routing gives `/bills/1107` and the `ddoksi://` deep link for free. React
+Navigation would need deep-link configuration written by hand and produces no web URLs at all.
+
+**The detail screen collapses the 제안이유 text and leads with the AI summary.** The raw text runs
+to a median of 499 and a maximum of over 10,000 characters of legal prose. It is kept, not removed
+— without it there is nothing to fall back on when a summary is wrong, and the service would be
+making unverifiable claims. The 국회 의안정보시스템 link stays for the same reason.
+
+The screen renders when any of its three inputs is missing: an empty analysis field is skipped
+(the server leaves fields empty on purpose rather than inventing content), a bill with no analysis
+yet shows a notice, and the 41 bills with no text simply have no collapsible section.
+
+> `app/AGENTS.md` says to read the versioned SDK docs before writing Expo code. That is worth
+> following — it is how the `src/app` behaviour above was found rather than guessed.
+
+### Schema (V1–V7)
 
 | Table | Purpose |
 |---|---|
@@ -452,7 +559,10 @@ Entry points, both disabled by default for the same reason as the list collector
 | `bill` | Normalized bill with its **current** status |
 | `bill_summary` | 제안이유 및 주요내용 — the bill's text, one row per bill (V4) |
 | `bill_status_history` | Status change history — the basis for the newsletter and push alerts |
-| `bill_analysis` | Cached Claude output, keyed by `(bill_id, prompt_version)` |
+| `bill_analysis` | Cached Claude output, keyed by `(bill_id, prompt_version)`. `hook` + `topics` added in V5 |
+| `analysis_batch` | Batch API submissions — the record that prevents paying twice (V6) |
+| `analysis_batch_item` | What went into each batch, with the input hash frozen at submit time (V6) |
+| `committee_alias` | Old committee name → current name, for the mid-term reorganisation (V7) |
 | `subscriber` | Newsletter subscribers, with double opt-in status and an unsubscribe token |
 | `subscription_committee` | Per-subscriber committee filter |
 | `letter_issue` | Monthly newsletter issue |
